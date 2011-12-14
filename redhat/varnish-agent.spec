@@ -1,6 +1,6 @@
 Summary: Varnish VAC Agent
 Name: varnish-agent
-Version: 1.0beta3
+Version: 1.1
 Release: 1
 License: BSD
 Group: System Environment/Daemons

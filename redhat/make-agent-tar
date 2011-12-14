@@ -19,7 +19,8 @@ if [ ! -d "$TOPDIR" ]; then
 fi
 
 mkdir -p $TMPDIR/varnish-agent-trunk/
-touch $TMPDIR/varnish-agent-trunk/.placeholder
+cp -r .. $TMPDIR/varnish-agent-trunk/
+
 cd $TMPDIR
 tar zcf $TOPDIR/SOURCES/varnish-agent-trunk.tar.gz varnish-agent-trunk
 rm -rf $TMPDIR

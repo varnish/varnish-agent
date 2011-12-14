@@ -12,6 +12,8 @@ Requires: varnish > 2.1
 Requires: perl-Log-Log4perl
 Requires: perl-Digest-SHA
 Requires: perl-Config-Simple
+Requires: perl-File-Pid
+Requires: perl-Proc-Daemon
 
 Requires(post): /sbin/chkconfig
 Requires(preun): /sbin/chkconfig
@@ -69,7 +71,7 @@ rm -rf %{buildroot}
 
 #%doc examples
 #%dir %{_sysconfdir}/varnish/
-%config(noreplace) %{_sysconfdir}/varnish-agent.conf
+#%config(noreplace) %{_sysconfdir}/varnish-agent.conf
 %config(noreplace) %{_sysconfdir}/sysconfig/varnish-agent
 %{_initrddir}/varnish-agent
 

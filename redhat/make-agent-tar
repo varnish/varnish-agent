@@ -13,7 +13,7 @@ TOPDIR=/tmp/varnish-agent-rpm/
 
 if [ ! -d "$TOPDIR" ]; then
     mkdir -p $TOPDIR
-    for i in SOURCES SPECS BUILD; do
+    for i in SOURCES SPECS BUILD RPMS RPMS/x64_64; do
         mkdir -p $TOPDIR/$i
     done
 fi

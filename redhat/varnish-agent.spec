@@ -4,7 +4,7 @@ Version: 1.0beta3
 Release: 1
 License: BSD
 Group: System Environment/Daemons
-URL: http://www.varnish-software.com/
+URL: http://github.com/varnish/varnish-agent/
 Source0: ./%{name}-trunk.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: varnish > 2.1
@@ -39,11 +39,11 @@ mkdir -p %{buildroot}/etc/varnish-agent/
 mkdir -p %{buildroot}/var/lib/varnish-agent/
 mkdir -p %{buildroot}/usr/share/doc/varnish-agent/
 
-cp agent/agent.pl      %{buildroot}/usr/bin/varnish-agent
-cp agent/agent.conf    %{buildroot}/etc/varnish-agent.conf
+cp src/varnish-agent      %{buildroot}/usr/bin/
+cp example-agent.conf     %{buildroot}/usr/share/doc/varnish-agent/
 
-#cp agent/agent.txt agent/README.txt %{buildroot}/usr/share/doc/varnish-agent/
-cp agent/LICENCE.txt agent/README.txt %{buildroot}/usr/share/doc/varnish-agent/
+cp LICENCE.txt %{buildroot}/usr/share/doc/varnish-agent/
+cp README.rst  %{buildroot}/usr/share/doc/varnish-agent/
 
 cp agent/redhat/varnish-agent.initrc    %{buildroot}/etc/rc.d/init.d/varnish-agent
 cp agent/redhat/varnish-agent.sysconfig %{buildroot}/etc/sysconfig/varnish-agent
@@ -83,6 +83,10 @@ rm -rf %{buildroot}
 #fi
 
 %changelog
+* Wed Dec 14 2011 Lasse Karstensen <lasse@varnish-software.com> - 1.1-0.20111214
+- bumping version to split from VAC numbering.
+- changed paths
+
 * Tue Nov 1 2011 Lasse Karstensen <lkarsten@varnish-software.com> - 1.0-0.20111101
 - beta3 changes.
 

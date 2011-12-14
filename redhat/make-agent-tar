@@ -1,0 +1,16 @@
+#!/bin/bash -x
+#
+# Create a tar.gz dist of the vac agent, to be used by rpmbuild.
+# Author: Lasse Karstensen <lkarsten@varnish-software.com>
+
+TMPDIR=/tmp/foo$$
+PREVDIR=$PWD
+
+mkdir -p $TMPDIR/varnish-agent-trunk/
+cp -r ../../agent $TMPDIR/varnish-agent-trunk/
+cd $TMPDIR
+tar zcf /usr/src/redhat/SOURCES/varnish-agent-trunk.tar.gz varnish-agent-trunk
+
+cd $PREVDIR
+rm -rf $TMPDIR
+

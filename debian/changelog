@@ -1,0 +1,22 @@
+varnish-agent (0.3) unstable; urgency=low
+
+  * Drop callhome.conf and agent.txt
+  * Add dependency on libio-socket-ssl-perl, liblog-dispatch-perl,
+    libfile-pid-perl, libproc-daemon-perl
+  * Ship /var/lib/varnish-agent in the package and add postrm script to
+    clean up.
+  * Adjust init script for daemon now daemoising by itself.
+
+ -- Tollef Fog Heen <tfheen@debian.org>  Wed, 23 Nov 2011 12:41:47 +0100
+
+varnish-agent (0.2) unstable; urgency=low
+
+  * Add --make-pidfile to init script.
+
+ -- Tollef Fog Heen <tfheen@varnish-software.com>  Thu, 27 Oct 2011 09:06:34 +0200
+
+varnish-agent (0.1) unstable; urgency=low
+
+  * Initial release
+
+ -- Tollef Fog Heen <tfheen@varnish-software.com>  Tue, 18 Oct 2011 13:55:38 +0200

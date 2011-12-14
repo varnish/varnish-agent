@@ -1,0 +1,12 @@
+How to build on a clean Centos 5.7 installation
+===============================================
+
+* add EPEL. 
+    Currently: http://download.fedora.redhat.com/pub/epel/5/i386/epel-release-5-4.noarch.rpm
+* yum install git-core rpm-build
+
+* Install run requirements: 
+	yum install perl-Log-Log4perl perl-Digest-SHA perl-Config-Simple perl-File-Pid perl-Proc-Daemon
+
+
+

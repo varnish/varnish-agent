@@ -1,0 +1,2 @@
+agent.pl usr/share/varnish-agent
+agent.conf    etc/varnish

@@ -1,0 +1,1302 @@
+#!/usr/bin/perl
+
+use strict;
+
+use Log::Log4perl qw(:easy);
+use Log::Dispatch::Syslog;
+use Data::Dumper;
+use Getopt::Long qw(:config bundling);
+use Pod::Usage;
+use IO::Socket;
+use IO::Socket::SSL;
+use IO::Select;
+use Carp qw(croak);
+use POSIX ":sys_wait_h";
+use Digest::SHA qw(sha256_hex sha1_hex);
+use File::Basename;
+use File::Spec;
+use File::Pid;
+use Config::Simple;
+use LWP::UserAgent;
+use URI;
+use URI::QueryParam;
+use HTTP::Request;
+use HTTP::Response;
+use Proc::Daemon;
+
+# Default configuration
+my %config = (
+    'Debug'		=> '0',
+    'ListenAddress'	=> ':6083',
+    'MasterAddress'	=> 'localhost:6084',
+    'VarnishAddress'	=> 'localhost:6082',
+    'PIDFile'		=> '/var/run/varnish-agent.pid',
+    'SecretFile'	=> undef,
+    'VCLFile'		=> '/var/lib/varnish-agent/agent.vcl',
+    'ParamsFile'	=> '/var/lib/varnish-agent/agent.param',
+    'VarnishStat'	=> 'varnishstat -1',
+    'InstanceID'	=> undef,
+    'CallHomeURL'	=> undef,
+    'SSLCAFile'		=> undef,
+    );
+
+use constant {
+    CLIS_SYNTAX		=> 100,
+    CLIS_UNKNOWN	=> 101,
+    CLIS_UNIMPL		=> 102,
+    CLIS_TOOFEW		=> 104,
+    CLIS_TOOMANY	=> 105,
+    CLIS_PARAM		=> 106,
+    CLIS_AUTH		=> 107,
+    CLIS_OK		=> 200,
+    CLIS_CANT		=> 300,
+    CLIS_COMMS		=> 400,
+    CLIS_CLOSE		=> 500,
+};
+
+use constant {
+    CLI_LINE0_LEN	=> 13,
+};
+
+my %command_map = (
+    'auth' => \&command_auth,
+    'vcl.use' => \&command_vcl_use,
+    'param.set' => \&command_param_set,
+    'agent.stat' => \&command_agent_stat,
+    );
+
+$Data::Dumper::Useqq = 1;
+
+my $man = 0;
+my $help = 0;
+my $opt_d = 0;
+my $opt_F = 0;
+
+my %child_pids = ();
+our $secret = undef;
+
+my $result = GetOptions(
+    'help|?' => \$help,
+    'man' => \$man,
+    'c:s' => sub {
+	Config::Simple->import_from($_[1], \%config)
+	    or die Config::Simple->error();
+    },
+    'F' => \$opt_F,
+    'd' => \$opt_d,
+    'P:s' => \$config{PIDFile},
+    'T:s' => \$config{ListenAddress},
+    'b:s' => \$config{VarnishAddress},
+    'M:s' => \$config{MasterAddress},
+    'S:s' => \$config{SecretFile},
+    'f:s' => \$config{VCLFile},
+    'p:s' => \$config{ParamsFile},
+    'n:s' => \$config{InstanceID},
+    'u:s' => \$config{CallHomeURL},
+    'C:s' => \$config{SSLCAFile},
+    ) or pod2usage(2);
+pod2usage(1) if $help;
+pod2usage(-exitstatus => 0, -verbose => 2) if $man;
+
+$opt_d = 1 if $config{Debug} > 0;
+$opt_F = 1 if $opt_d;
+
+if($config{SecretFile} gt '') {
+    die "Can't read secret file" unless -r $config{SecretFile};
+
+    local $/;			# Slurp file
+    open(FILE, $config{SecretFile}) or die $!;
+    $secret = <FILE>;
+    close FILE;
+
+    die "No secret in secret file" unless $secret gt '';
+}
+
+# Make file references be absolute
+$config{SecretFile} &&= File::Spec->rel2abs($config{SecretFile});
+$config{VCLFile} &&= File::Spec->rel2abs($config{VCLFile});
+$config{ParamsFile} &&= File::Spec->rel2abs($config{ParamsFile});
+$config{CallHomeConfig} &&= File::Spec->rel2abs($config{CallHomeConfig});
+$config{PIDFile} &&= File::Spec->rel2abs($config{PIDFile});
+$config{SSLCAFile} &&= File::Spec->rel2abs($config{SSLCAFile});
+
+# Set default InstanceID
+unless($config{InstanceID}) {
+    $config{InstanceID} = `hostname`;
+    chomp $config{InstanceID};
+}
+
+# Check write access to our files
+if($config{PIDFile} gt '') {
+    if((-e $config{PIDFile} && !-w $config{PIDFile}) ||
+       !-w dirname($config{PIDFile})) {
+	die "Can't write to PID file '$config{PIDFile}'";
+    }
+}
+if((-e $config{VCLFile} && !-w $config{VCLFile}) ||
+   !-w dirname($config{VCLFile})) {
+    die "Can't write to agent VCL file '$config{VCLFile}'";
+}
+if((-e $config{ParamsFile} && !-w $config{ParamsFile}) ||
+   !-w dirname($config{ParamsFile})) {
+    die "Can't write to agent parameters file '$config{ParamsFile}'";
+}
+
+# Are we using SSL
+if ($config{SSLCAFile}) {
+  IO::Socket::SSL::set_ctx_defaults(
+      verify_mode => Net::SSLeay->VERIFY_PEER(),
+      ca_file => $config{SSLCAFile},
+      );
+}
+
+# Check if we are running
+if ($config{PIDFile}) {
+    my $pidfile = File::Pid->new( { file => $config{PIDFile} } );
+    my $pid = $pidfile->running;
+    die "Already running (pid $pid)" if $pid;
+}
+
+# We should be OK to start - daemonize
+unless($opt_F) {
+    Proc::Daemon::Init;
+}
+
+# Record our PID
+my $pidfile;
+if ($config{PIDFile}) {
+    $pidfile = File::Pid->new( { file => $config{PIDFile} } );
+    $pidfile->write or die "Can't write PID file";
+}
+
+# Set up logging
+my $sysloglayout = '%-6X{ME} %-5p %m';
+my $stderrlayout = '%-6X{ME} %-5p %d %m%n';
+Log::Log4perl->easy_init(
+    { level	=> ($opt_d ? $DEBUG : $INFO),
+      layout	=> $stderrlayout,
+    } );
+unless($opt_F) {
+    my $layout = Log::Log4perl::Layout::PatternLayout->new($sysloglayout);
+    my $syslog = Log::Log4perl::Appender->new("Log::Dispatch::Syslog");
+    $syslog->layout($layout);
+    my $logger = get_logger();
+    $logger->add_appender($syslog);
+}
+
+Log::Log4perl::MDC->put(ME => 'MAIN');
+
+INFO "Agent starting";
+
+my %escapes = (
+    ' '  => ' ',
+    "\\" => "\\\\",
+    '"'  => "\\\"",
+    "\n" => "\\n",
+    "\r" => "\\r",
+    "\t" => "\\t",
+);
+for (0..255) {
+    $escapes{chr($_)} ||= sprintf("%%%02X", $_);
+}
+
+# Setups
+sub child_reaper {
+    my $child;
+    while(($child = waitpid(-1, WNOHANG)) > 0) {
+	$child_pids{$child} = 0 if exists $child_pids{$child};
+	print STDERR "Reaped a child ($child)\n" if $opt_d;
+    }
+}
+$SIG{CHLD} = \&child_reaper;
+
+sub sigexit {
+    print STDERR "Caught interrupt\n" if $opt_d;
+    die "sigexit";
+}
+$SIG{INT} = $SIG{TERM} = \&sigexit;
+
+# Start listening on my address
+my $listen_master = IO::Socket::INET->new(
+    Type => SOCK_STREAM,
+    Proto => 'tcp',
+    LocalAddr => $config{MasterAddress},
+    Listen => 1,
+    ReuseAddr => 1,
+    )
+    or die "Can't create master listening socket: $@";
+my $listen_client = IO::Socket::INET->new(
+    Type => SOCK_STREAM,
+    Proto => 'tcp',
+    LocalAddr => $config{ListenAddress},
+    Listen => 1,
+    ReuseAddr => 1,
+    )
+    or die "Can't create listening socket: $@";
+
+DEBUG "Created listening sockets";
+
+if($config{CallHomeURL} gt '') {
+    unless(fork) {
+	Log::Log4perl::MDC->put(ME => "CALLER");
+	DEBUG "Call home process running (PID $$)";
+	eval {
+	    call_home_handler();
+	};
+	ERROR "$@" if $@;
+	exit(0);
+    }
+}
+
+my $select_listen = IO::Select->new();
+$select_listen->add($listen_master);
+$select_listen->add($listen_client);
+
+eval {
+    my $master_counter=0;
+    my $client_counter=0;
+    INFO "Waiting for incoming connections";
+    while(1) {
+	for my $fh ($select_listen->can_read) {
+	    if($fh == $listen_client) {
+		my $client = $listen_client->accept
+		    or die $!;
+		$client_counter++;
+		my $pid = fork;
+		defined $pid or die "fork: $!";
+		if($pid) {
+		    # Parent
+		    $client->close;
+		    $child_pids{$pid} = 1;
+		} else {
+		    # Child
+		    Log::Log4perl::MDC->put(ME => sprintf("C%5d", $client_counter));
+		    INFO "Accepted incoming client connection from ".inet_ntoa($client->peeraddr)." (PID $$)";
+		    $listen_client->close;
+		    $listen_master->close;
+		    eval {
+			client_handler($client);
+		    };
+		    ERROR "$@" if $@ && $@ !~ /^sigexit/;
+		    $client->close;
+		    INFO "Client connection closed";
+		    exit(0);
+		}
+	    } elsif($fh == $listen_master) {
+		my $varnish =  $listen_master->accept
+		    or die $!;
+		$master_counter++;
+		my $pid = fork;
+		defined $pid or die "fork: $!";
+		if($pid) {
+		    # Parent
+		    $varnish->close;
+		    $child_pids{$pid} = 1;
+		} else {
+		    # Child
+		    Log::Log4perl::MDC->put(ME => sprintf("M%05d", $master_counter));
+		    INFO "Accepted incoming master connection from ".inet_ntoa($varnish->peeraddr)." (PID $$)";
+		    $listen_client->close;
+		    $listen_master->close;
+		    eval {
+			master_handler($varnish);
+		    };
+		    ERROR "$@" if $@ && $@ !~ /^sigexit/;
+		    $varnish->close;
+		    INFO "Master connection closed";
+		    exit(0);
+		}
+	    }
+	}
+    }
+};
+
+# Send TERM to any childs still running
+my @pids = grep { $child_pids{$_} } keys %child_pids;
+for my $pid (@pids) {
+    DEBUG "Killing child with pid $pid";
+    kill("TERM", $pid);
+}
+
+die $@ if $@ and $@ !~ /^sigexit/;
+
+INFO "Closing down";
+$listen_client->close;
+$listen_master->close;
+
+if($pidfile) {
+    DEBUG "Removing pid file";
+    $pidfile->remove or WARN "Couldn't unlink pid file";
+}
+exit(0);
+
+# Functions
+
+# Escape a data string
+sub varnish_escape {
+    my $text = shift;
+
+    $text =~ s/([\\"])/$escapes{$1}/ge;
+    $text =~ s/([[:^graph:]])/$escapes{$1}/ge;
+
+    $text;
+}
+
+sub quote {
+    use bytes;
+
+    my @r;
+    for (@_) {
+	my $s = $_;
+	$s =~ s/\n/\\n/g;
+	$s =~ s/\r/\\r/g;
+	$s =~ s/\t/\\t/g;
+	$s =~ s/"/\\"/g;
+	$s =~ s/([[:^print:]])/sprintf("\\%03o", ord($1))/ge;
+	if ($s =~ /\s/) {
+	    $s = "\"$s\"";
+	}
+	push @r, $s;
+    }
+    return join(' ', @r);
+}
+
+sub unquote {
+    use bytes;
+
+    my $s = shift;
+    my @r;
+    while (length($s)) {
+	if ($s =~ s/^\s+//) {
+	    # Get rid of white space
+	    next;
+	} elsif ($s =~ s/^"(.*?)(?<!\\)"//) {
+	    # Quoted word
+	    push @r, $1;
+	    next;
+	} elsif ($s =~ /^"[^"]*$/) {
+	    # Unbalanced quotes
+	    die "Unbalanced quotes";
+	} elsif ($s =~ s/^([[:graph:]]+)//) {
+	    # Unquoted word
+	    push @r, $1;
+	    next;
+	}
+    }
+
+    for my $r (@r) {
+	$r =~ s/\\\\/!"magic#/g;
+	$r =~ s/\\n/\n/g;
+	$r =~ s/\\r/\r/g;
+	$r =~ s/\\t/\t/g;
+	$r =~ s/\\"/"/g;
+	$r =~ s/\\([0-7]{1,3})/chr(oct($1))/ge;
+	$r =~ s/\\x([0-9a-fA-F]{2})/chr(hex($1))/ge;
+	$r =~ s/!"magic#/\\/g;
+    }
+
+    return @r;
+}
+
+# Removes (possible an \r) and a \n
+sub chomp_line {
+    my $line = shift;
+    $line =~ s/\r?\n$//;
+    return $line;
+}
+
+# Escape special chars in a string
+sub pretty_line {
+    my $line = shift;
+    if (length($line) >= 256) {
+	$line = substr($line, 0, 253)."...";
+    }
+    return Data::Dumper->new([$line])->Useqq(1)->Terse(1)->Indent(0)->Dump;
+}
+
+# Format a proper varnish CLI line0 from a response structure
+sub format_line0 {
+    my $response = shift;
+
+    my $length = length $response->{data};
+    my $line0 = "$response->{status} $length";
+    $line0 .= " "x(CLI_LINE0_LEN - 1 - length($line0));
+    $line0 .= "\n";
+
+    return $line0;
+}
+
+sub randstring {
+    my $len = shift;
+    my $s;
+    my @chars = ('a'..'z');
+    for (my $i = 0; $i < $len; $i++) {
+	$s .= $chars[rand @chars];
+    }
+    return $s;
+}
+
+# Create an auth response using the secret
+sub create_auth {
+    my $response = shift;
+
+    die "Not a challenge response" unless $response->{status} == CLIS_AUTH;
+    my ($challenge) = ($response->{data} =~ /^(.*)$/m);
+    return sha256_hex("$challenge\n".$secret."$challenge\n");
+}
+
+# Format a response structure
+sub format_response {
+    my $status = shift;
+    my $data = shift;
+
+    return { status => $status, data => $data };
+}
+
+# Slurp a file
+sub read_file {
+    my $filename = shift;
+
+    local $/;
+
+    die "No such file '$filename'"
+	unless -e $filename;
+    open(FILE, $filename)
+	or die "Can't open '$filename': $!";
+    my $data = <FILE>;
+    close FILE;
+
+    return $data;
+}
+
+sub receive_command {
+    my $socket = shift;
+    my $authenticated = shift;
+
+    my $line = <$socket>;
+    DEBUG "C->A: ".pretty_line($line);
+    $line = chomp_line($line);
+    if ($authenticated && $line =~ s/ << (\w+)$//) {
+	# Here-document
+	my $token = $1;
+	my ($heredoc, $part);
+	while (1) {
+	    $part = <$socket>
+		or die $!;
+	    last if (chomp_line($part) eq $token);
+	    $heredoc .= $part;
+	}
+	if (wantarray) {
+	    return ($line, $heredoc);
+	} else {
+	    WARN "receive_command dropping here document";
+	    return $line;
+	}
+    } else {
+	return $line;
+    }
+}
+
+sub receive_command_2 {
+    my $socket = shift;
+    my $authenticated = shift;
+
+    DEBUG "authenticated=$authenticated";
+
+    my $line = <$socket>;
+    DEBUG "C->A: ".pretty_line($line);
+    $line = chomp_line($line);
+    my $tmp = $line;
+    my $heredoc = undef;
+    if ($authenticated && $tmp =~ s/ << (\w+)$//) {
+	# Here-document
+	my $token = $1;
+	my $part;
+	while (1) {
+	    $part = <$socket>
+		or die $!;
+	    last if (chomp_line($part) eq $token);
+	    $heredoc .= $part;
+	}
+    }
+    my @args = unquote($tmp);
+    my $command = shift @args;
+    push @args, $heredoc if defined $heredoc;
+    return {
+	line => $line,
+	command => $command,
+	args => \@args,
+	heredoc => defined $heredoc ? 1 : 0,
+    };
+}
+
+sub send_command {
+    my $socket = shift;
+    my $line = shift;
+
+    die if ref $line;
+
+    print $socket "$line\n";
+}
+
+sub send_command_2 {
+    my $socket = shift;
+    my $command = shift;
+
+    if ($command->{line}) {
+	# Our command struct has a 'line', use this
+	DEBUG "A->V: ".$command->{line};
+	print $socket "$command->{line}\n";
+	if ($command->{heredoc} && $command->{line} =~ /<< (\w+)$/) {
+	    # We should add a heredoc argument
+	    my $token = $1;
+	    my $heredoc = @{$command->{args}}[-1];
+	    print $socket $heredoc;
+	    print $socket "\n" unless $heredoc =~ /\n$/s;
+	    print $socket "$token\n";
+	}
+    } else {
+	# Construct line
+	die "No command" unless $command->{command};
+	if ($command->{heredoc} && scalar @{$command->{args}}) {
+	    # Send with heredoc argument
+	    my @args = @{$command->{args}};
+	    my $heredoc = pop @args;
+
+	    # Create a token
+	    my $token;
+	    do {
+		$token = randstring(8);
+	    } while ($heredoc =~ /$token/);
+
+	    my $line = quote($command->{command}, @args)." << $token";
+	    DEBUG "A->V: ".$line;
+	    print $socket "$line\n";
+	    print $socket $heredoc;
+	    print $socket "\n" unless $heredoc =~ /\n$/s;
+	    print $socket "$token\n";
+	} else {
+	    # No heredoc
+	    my $line = quote($command->{command}, @{$command->{args}});
+	    DEBUG "A->V: ".$line;
+	    print $socket "$line\n";
+	}
+    }
+}
+
+sub receive_response {
+    my $socket = shift;
+
+    my $line;
+    do {
+	$line = <$socket>
+	    or die $!;
+	DEBUG "V->A: ".pretty_line($line);
+	chomp $line;
+    } while $line eq "";
+    $line =~ /^(\d+)\s+(\d+)\s*$/
+	or die "CLI protocol error: Syntax error";
+    my $status = $1;
+    my $length = $2;
+    my $data;
+    my $bytes_read = $socket->read($data, $length);
+    $length==$bytes_read
+	or die "CLI communication error. Expected to read $length bytes, but read $bytes_read: $!";
+    DEBUG "V->A: ".pretty_line($data);
+
+    # Read the empty line
+    $line = <$socket>;
+
+    return { status => $status, data => $data };
+}
+
+sub send_response {
+    my $socket = shift;
+    my $response = shift;
+
+    my $line0 = format_line0($response);
+    DEBUG "A->C: ".pretty_line($line0);
+    $socket->print(format_line0($response))
+	or die $!;
+    my $data = $response->{data};
+    DEBUG "A->C: ".pretty_line($data);
+    DEBUG "length: ".length($data);
+    $socket->print($response->{data})
+	or die $!;
+    $socket->print("\n")
+	or die $!;
+    $socket->flush;
+}
+
+sub master_handler {
+    my $varnish = shift;
+
+    my $authenticated = 0;
+
+    # Read initial varnish response
+    my $response = receive_response($varnish);
+    if($response->{status} == CLIS_AUTH) {
+	# Varnish requires an auth - do it
+	send_command($varnish, "auth ".create_auth($response));
+	$response = receive_response($varnish);
+	$response->{status} == CLIS_OK
+	    or die "Failed authentication challenge";
+	DEBUG "Authenticated successfully";
+	$authenticated = 1;
+    }
+    die "Bad varnish response" unless $response->{status} == CLIS_OK;
+
+    # Push params
+    if(-r $config{ParamsFile}) {
+	INFO "Pushing parameters to varnish";
+	my $params = read_params($config{ParamsFile});
+
+	for my $param (@$params) {
+	    send_command_2(
+		$varnish, 
+		{ command => "param.set",
+		  args => [ $param->[0], $param->[1] ]
+		} );
+	    my $response = receive_response($varnish);
+	    if($response->{status} == CLIS_OK) {
+		INFO "Parameter $param->[0]=$param->[1] set successfully";
+	    } else {
+		WARN "Failed to set $param->[0]=$param->[1]";
+	    }
+	}
+    }
+
+    # Push config
+    if(-r $config{VCLFile}) {
+	eval {
+	    INFO "Pushing current vcl to varnish";
+	    my $data = read_file($config{VCLFile});
+	    
+	    # Create a name for the VCL
+	    # We are using the sha1 of the content of the file
+	    my $vcl_name = sha1_hex($data);
+	    
+	    # Load the VCL
+	    send_command_2(
+		$varnish,
+		{ command => "vcl.inline",
+		  args => [ $vcl_name, $data ],
+		  heredoc => $authenticated,
+		} );
+	    my $response = receive_response($varnish);
+	    DEBUG "vcl.inline status=$response->{status}";
+	    die "Failed to load VCL" unless $$response{status} == CLIS_OK;
+	    
+	    # Use the VCL
+	    send_command($varnish, "vcl.use $vcl_name");
+	    $response = receive_response($varnish);
+	    DEBUG "vcl.use status=$response->{status}";
+	    die "Failed to use the VCL" unless $$response{status} == CLIS_OK;
+	    
+	    # Start varnish
+	    send_command($varnish, "start");
+	    $response = receive_response($varnish);
+	    DEBUG "start status=$response->{status}";
+	    die "Failed to start varnish" unless $$response{status} == CLIS_OK;
+	};
+	if ($@) {
+	    WARN "Agent autoload VCL failed: $@";
+	}
+    }
+
+    # Endless loop to keep master connection live
+    while(<$varnish>) {
+	DEBUG "M: ".pretty_line($_);
+    }
+
+    INFO "Master shutting down";
+}
+
+sub client_handler {
+    my $client = shift;
+
+    # Don't autoflush
+    $client->autoflush(0);
+
+    # Open a connection to varnish for this client connection
+    my $varnish = IO::Socket::INET->new(
+	Type => SOCK_STREAM,
+	Proto => 'tcp',
+	PeerHost => $config{VarnishAddress},
+	)
+	or die "Failed to connect to varnish CLI: $@";
+    $varnish->timeout(1);
+
+    # Read initial varnish response
+    my $response = receive_response($varnish);
+    die "Bad varnish server initial response" unless(defined $response && ($response->{status} == CLIS_OK || $response->{status} == CLIS_AUTH));
+    send_response($client, $response);
+
+    my $s = IO::Select->new();
+    $s->add($client);
+    $s->add($varnish);
+
+    # Our connection context
+    my $c = {
+	client => $client,
+	varnish => $varnish,
+	authenticated => 0,
+    };
+
+    eval {
+      LOOP: while(1) {
+	  my @ready = $s->can_read;
+	  for my $fh (@ready) {
+	      if($fh == $client) {
+		  if($fh->eof()) {
+		      INFO "Client closed connection";
+		      last LOOP;
+		  }
+		  my $command = receive_command_2($client, $c->{authenticated});
+		  if($command->{line} gt '') {
+		      handle_command($c, $command);
+		  }
+	      } elsif($fh == $varnish) {
+		  if($fh->eof()) {
+		      INFO "Varnish closed connection";
+		      last LOOP;
+		  }
+		  # Out of sync varnish message
+		  DEBUG "Varnish unexpectedly ready for reading";
+		  my $response = receive_response($varnish);
+		  send_response($client, $response);
+	      }
+	  }
+      }
+    };
+    die $@ if $@ && $@ !~ /^sigexit/;
+
+    INFO "Client handler down connection";
+    close $varnish;
+    close $client;
+    exit 0;
+}
+
+sub handle_command {
+    my $c = shift;
+    my $command = shift;
+
+    my $varnish = $c->{varnish};
+    my $client = $c->{client};
+
+    DEBUG "Command: $command->{command} Args: ".scalar(@{$command->{args}});
+    if(exists $command_map{$command->{command}}) {
+	&{$command_map{$command->{command}}}($c, $command);
+    } else {
+	# Non-intercepted command - pipe to varnish
+	send_command_2($varnish, $command);
+	my $response = receive_response($varnish);
+	send_response($client, $response);
+    }
+}
+
+sub command_auth {
+    my $c = shift;
+    my $command = shift;
+
+    my $varnish = $c->{varnish};
+    my $client = $c->{client};
+
+    send_command_2($varnish, $command);
+    my $response = receive_response($varnish);
+    if ($response->{status} == CLIS_OK) {
+	# Connection has been successfully authenticated
+	$c->{authenticated} = 1;
+    }
+    send_response($client, $response);
+}
+
+sub command_vcl_use {
+    my $c = shift;
+    my $command = shift;
+    my $args = $command->{args};
+
+    DEBUG "command_vcl_use called args[0]=$$args[0]";
+
+    my $varnish = $c->{varnish};
+    my $client = $c->{client};
+
+    if($$args[0]) {
+	my $configname = $$args[0];
+	DEBUG "configname=$configname";
+
+	# Ask varnish for the VCL of this config
+	send_command_2(
+	    $varnish, {
+		command => "vcl.show",
+		args => [ $configname ]
+	    });
+	my $getconfig = receive_response($varnish);
+
+	# Send the command to use this config to varnish
+	send_command_2($varnish, $command);
+	my $setconfig = receive_response($varnish);
+
+	if($getconfig->{status} == CLIS_OK && $setconfig->{status} == CLIS_OK) {
+	    # If the response from varnish to vcl.use is CLIS_OK
+	    # store the config as the last one
+
+	    # TODO: what if the vcl.show returns not CLIS_OK, but vcl.use does?
+
+	    open(FILE, ">$config{VCLFile}")
+		or die "Failed to open output file: $!";
+	    print FILE $getconfig->{data};
+	    close FILE;
+
+	    INFO "New varnish configuration stored";
+	}
+
+	send_response($client, $setconfig);
+    } else {
+	# We couldn't parse the command line
+	# Let varnish create a helpful error message
+	send_command_2($varnish, $command);
+	my $response = receive_response($varnish);
+	send_response($client, $response);
+    }
+}
+
+sub command_param_set {
+    my $c = shift;
+    my $command = shift;
+    my $args = $command->{args};
+
+    DEBUG "command_param_set called";
+
+    my $varnish = $c->{varnish};
+    my $client = $c->{client};
+
+    my $params = read_params($config{ParamsFile});
+
+    if(scalar @$args == 2) {
+	my $param = $$args[0];
+	my $value = $$args[1];
+
+	send_command_2(
+	    $varnish, {
+		command => "param.set",
+		args => [ $param, $value ],
+	    });
+	my $response = receive_response($varnish);
+
+	if($response->{status} == CLIS_OK) {
+	    INFO "Parameter $param=$value set successfully";
+	    add_param($params, $param, $value);
+	    write_params($config{ParamsFile}, $params);
+	}
+
+	send_response($client, $response);
+    } else {
+	# We couldn't parse the command line
+	# Let varnish create a helpful error message
+	send_command_2($varnish, $command);
+	my $response = receive_response($varnish);
+	send_response($client, $response);
+    }
+}
+
+sub command_agent_stat {
+    my $c = shift;
+    my $command = shift;
+    my $args = $command->{args};
+
+    DEBUG "command_agent_stat called";
+
+    my $client = $c->{client};
+
+    # If we have a secret file configured, require an authenticated
+    # connection
+    if($config{SecretFile} gt '' && !$c->{authenticated})  {
+	send_response($client, {
+	    status => CLIS_CANT,
+	    data => 'Not an authenticated connection'});
+	return;
+    }
+
+    my $cmd = $config{VarnishStat};
+
+    my $stats;
+    eval {
+	$stats = `$cmd`
+	    or die "Can't execute $cmd";
+    };
+    my $response;
+    if($@) {
+	$response = {
+	    status => CLIS_CANT,
+	    data => $@,
+	};
+    } else {
+	$response = {
+	    status => CLIS_OK,
+	    data => $stats,
+	};
+    }
+
+    send_response($client, $response);
+}
+
+sub read_params {
+    my $file = shift;
+
+    my $data = [];
+    return $data unless -e $file;
+
+    open(FILE, "$file")
+	or die "Can't read params file $file: $!";
+    while(<FILE>) {
+	chomp;
+	my $line = $_;
+	if($line =~ /^(\S+?)=(.*)/) {
+	    push(@$data, [$1, $2]);
+	}
+    }
+    close FILE;
+
+    return $data;
+}
+
+sub write_params {
+    my $file = shift;
+    my $params = shift;
+
+    open(FILE, ">$file")
+	or die "Can't open params file $file: $!";
+    for my $param (@$params) {
+	print FILE "$param->[0]=$param->[1]\n";
+    }
+    close FILE;
+}
+
+sub add_param {
+    my $data = shift;
+    my $param = shift;
+    my $value = shift;
+
+    @$data = grep { $_->[0] ne $param } @$data;
+    push @$data, [$param, $value];
+}
+
+sub call_home_handler {
+    # Call home
+    INFO "ET call home";
+
+    my $id = $config{InstanceID};
+    my $url = URI->new($config{CallHomeURL});
+
+    # Discover our outbound IP as seen when calling home
+    my $socket = IO::Socket::INET->new(
+	Type => SOCK_STREAM,
+	Proto => 'tcp',
+	PeerHost => $url->host,
+	PeerPort => $url->port,
+	)
+	or die "Can't connect to remote: $@";
+    my $localaddr = $socket->sockhost;
+    $socket->close;
+
+    # Figure out the port numbers
+    my ($varnishport) = $config{VarnishAddress} =~ /:(\d+)$/
+	or die "Can't determine varnish port";
+    my ($port) = $config{ListenAddress} =~ /:(\d+)$/
+	or die "Can't determine local port";
+
+    $url->query_form(
+    	ip => $localaddr,
+    	port => $varnishport,
+    	cliPort => $port,
+    	$secret ? (secret => $secret) : (),
+    	agentId => $id,
+    	);
+
+    DEBUG "Call home URL: ".$url->as_string;
+
+    my $ua = LWP::UserAgent->new;
+    my $request = HTTP::Request->new('GET', $url);
+    my $response = $ua->request($request);
+
+    INFO "Call home result: ".$response->status_line;
+}
+
+__END__
+
+=head1 NAME
+
+agent.pl
+
+=head1 SYNOPSIS
+
+agent.pl
+
+  Options:
+    --help|-?				Brief help message
+    --man				Print manual page
+    -c <config-file>			Read configuration from file
+    -F					Run in foreground
+    -d					Turn on debugging output
+    -P <pid-file>			Write PID to file
+    -T <addr:port> (:6083)		CLI listen port
+    -b <addr:port> (localhost:6082)	Varnish CLI port
+    -M <addr:port> (localhost:6084)	Master CLI listen port
+    -f <path> (agent.vcl)		Current running vcl file
+    -p <path> (agent.param)		Saved parameter storage file
+    -S <path>				Secret file
+    -n <instance-id> (hostname)		Instance ID when calling home
+    -u <call-home-url>			Call home URL
+    -C <ca-file>			CA file for SSL peer verification
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Print a brief help message and exits.
+
+=item B<--man>
+
+Prints the manual page and exits.
+
+=item B<-c> <config-file>
+
+Reads configuration from config-file. See section CONFIGURATION FILE.
+
+=item B<-F>
+
+Run in the foreground, don't daemonize
+
+=item B<-d>
+
+Turns on verbose debugging output and sets -F
+
+=item B<-P> <pid-file>
+
+Check if it is already running, and record the PID of the agent in
+<pid-file>
+
+  Default: /var/run/varnish-agent.pid
+  Config key: PIDFile
+
+=item B<-T> <:6083>
+
+Sets the incoming CLI connection listen address. This is the address
+CLI clients should contact when going through the agent
+
+  Default: :6083
+  Config key: ListenAddress
+
+=item B<-b> <localhost:6082>
+
+Sets the varnishd CLI address. This is the address the agent will
+contact varnishd on.
+
+  Default: localhost:6082
+  Config key: VarnishAddress
+
+=item B<-M> <localhost:6084>
+
+Sets the incoming Master connection listen address. This is the
+address varnishd will contact the agent on when starting up in Master
+mode.
+
+  Default: localhost:6084
+  Config key: MasterAddress
+
+=item B<-f> <agent.vcl>
+
+Point to the file where the current running VCL configuration will be
+stored by the agent.
+
+  Default: /var/lib/varnish-agent/agent.vcl
+  Config key: VCLFile
+
+=item B<-p> <agent.param>
+
+Point to the file where the current set parameters will be stored by
+the agent.
+
+  Default: /var/lib/varnish-agent/agent.param
+  Config key: ParamsFile
+
+=item B<-S>
+
+Point to the file containing the shared secret key, and directs the
+agent to use shared secret authentication
+
+  Default: <undefined>
+  Config key: SecretFile
+
+=item B<-n>
+
+Set the instance ID of this cache to report when calling
+home. Defaults to the hostname. See section CALLING HOME
+
+  Default: hostname
+  Config key: InstanceID
+
+=item B<-u>
+
+Set the call home URL and enable call home on startup. See section
+CALLING HOME
+
+  Default: <undefined>
+  Config key: CallHomeURL
+
+=item B<-C>
+
+Set the CA file for SSL peer verification when calling home. See
+section CALLING HOME
+
+  Default: <undefined>
+  Config key: SSLCAFile
+
+=back
+
+=head1 CONFIG FILE
+
+You can specify a config file using the -c option. The default values
+built in are as if the following configuration file was read at
+startup.
+
+    Debug		"0"
+    PIDFile		"/var/run/varnish-agent.pid"
+    ListenAddress	":6083"
+    MasterAddress	"localhost:6084"
+    VarnishAddress	"localhost:6082"
+    SecretFile
+    VCLFile		"/var/lib/varnish-agent/agent.vcl"
+    ParamsFile		"/var/lib/varnish-agent/agent.param"
+    VarnishStat		"varnishstat -1"
+    InstanceID		<hostname>
+    CallHomeURL
+    SSLCAFile
+
+=head2 Configuration parameters
+
+=over 8
+
+=item B<Debug> "0"
+
+Enables more verbose debug log
+
+=item B<PIDFile> "/etc/varnish/agent.pid"
+
+Write process ID to specified file
+
+=item B<ListenAddress> ":6083"
+
+See description of C<-T> command line option
+
+=item B<MasterAddress> "localhost:6084"
+
+See description of C<-M> command line option
+
+=item B<VarnishAddress> "localhost:6082"
+
+See description of C<-b> command line option
+
+=item B<SecretFile>
+
+See description of C<-S> command line option
+
+=item B<VCLFile>
+
+See description of C<-f> command line option
+
+=item B<ParamsFile>
+
+See description of C<-p> command line option
+
+=item B<VarnishStat>
+
+Identifies the command to run on the 'agent.stat' command which will be
+piped to the calling process
+
+=item B<InstanceID>
+
+The instance ID of this cache. Defaults to the hostname.
+
+=item B<CallHomeURL>
+
+If set will call home on startup to the specified URL.
+
+=item B<SSLCAFile>
+
+SSL CA file from which to verify the peer host when calling home
+through SSL. Without this peer verification is disabled.
+
+=back
+
+=head1 SPECIAL COMMANDS
+
+These are CLI commands the agent treats specially. The commands are
+intercepted, some action or manipulation is done by the agent, before
+sending the command to varnishd for execution. Some commands are
+handled solely by the agent, these commands are prefixed C<agent.>
+
+=over 8
+
+=item auth
+
+This command is intercepted by the agent to keep track of wether a
+connection has been authenticated or not. Always proxied to Varnish.
+
+=item vcl.use
+
+This command is intercepted by the agent, and the agent will if
+Varnish reports the VCL was taken into use successfully, store this
+VCL as the active VCL to push to varnish on new master connections
+
+=item param.set
+
+This command is intercepted by the agent, and will be stored as a
+parameter with value to set on new master connections
+
+=item agent.stat
+
+This command is handled solely by the agent. Will execute the
+VarnishStat configuration command and send the result as the
+response. Reports CLIS_CANT on error. Will require an authenticated
+connection if the SecretFile is specified.
+
+=back
+
+=head1 CALLING HOME
+
+If the call home URL is given, the agent will at startup perform a
+call home. SSL is supported, but peer verification is only performed
+if you supply a SSL ca file to verify against.
+
+It will supply the following information in a REST call:
+
+=over 8
+
+=item ip
+
+The IP of the running server (on whichever interface that the
+CallHomeURL is reachable from that server)
+
+=item port
+
+The CLI port this agent instance is configured to call varnishd on
+
+=item cliPort
+
+The CLI port this agent is listening on
+
+=item secret
+
+Only supplied if the agent is configured to use secret authentication
+
+=item agentId
+
+The content of InstanceID
+
+=back
+
+=cut

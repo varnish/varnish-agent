@@ -1,0 +1,2 @@
+etc/varnish
+var/lib/varnish-agent

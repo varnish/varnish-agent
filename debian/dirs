@@ -1,2 +1,3 @@
 etc/varnish
 var/lib/varnish-agent
+usr/share/doc/varnish-agent

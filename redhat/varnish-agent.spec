@@ -45,8 +45,8 @@ cp example-agent.conf     %{buildroot}/usr/share/doc/varnish-agent/
 cp LICENCE.txt %{buildroot}/usr/share/doc/varnish-agent/
 cp README.rst  %{buildroot}/usr/share/doc/varnish-agent/
 
-cp agent/redhat/varnish-agent.initrc    %{buildroot}/etc/rc.d/init.d/varnish-agent
-cp agent/redhat/varnish-agent.sysconfig %{buildroot}/etc/sysconfig/varnish-agent
+cp redhat/varnish-agent.initrc    %{buildroot}/etc/rc.d/init.d/varnish-agent
+cp redhat/varnish-agent.sysconfig %{buildroot}/etc/sysconfig/varnish-agent
 
 mkdir -p %{buildroot}/%{_mandir}/man1/
 %{buildroot}/usr/bin/varnish-agent --man > %{buildroot}/%{_mandir}/man1/varnish-agent.1

@@ -6,11 +6,23 @@
 TMPDIR=/tmp/foo$$
 PREVDIR=$PWD
 
+TOPDIR=/tmp/varnish-agent-rpm/
+
+# someone will hate me for this some day..
+#echo "%_topdir $TOPDIR" > ~/.rpmmacros
+
+if [ ! -d "$TOPDIR" ]; then
+    mkdir -p $TOPDIR
+    for i in SOURCES SPECS BUILD; do
+        mkdir -p $TOPDIR/$i
+    done
+fi
+
 mkdir -p $TMPDIR/varnish-agent-trunk/
-cp -r ../../agent $TMPDIR/varnish-agent-trunk/
+touch $TMPDIR/varnish-agent-trunk/.placeholder
 cd $TMPDIR
-tar zcf /usr/src/redhat/SOURCES/varnish-agent-trunk.tar.gz varnish-agent-trunk
+tar zcf $TOPDIR/SOURCES/varnish-agent-trunk.tar.gz varnish-agent-trunk
+rm -rf $TMPDIR
 
 cd $PREVDIR
-rm -rf $TMPDIR
 

@@ -9,6 +9,7 @@ Console (VAC) providered by Varnish Software AS.
 Upon starting, the agent will attempt to register itself with the VAC instance
 mentioned in the agent.conf configuration file.
 
+
 Source
 ------
 

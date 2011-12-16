@@ -3,10 +3,11 @@
 # varnish-agent - Varnish VAC Agent
 #
 # chkconfig: - 90 10
+# chkconfig: 2345 92 08
 # description: Agent for the Varnish Administration Console. (VAC)
-# processname: agent
-# lxvcclxnfig: /etc/sysconfig/varnish
-# pxcxfidfile: /var/run/varnishd.pid
+# processname: varnish-agent
+# lxvcclxnfig: /etc/sysconfig/varnish-agent
+# pxcxfidfile: /var/run/varnishd-agent.pid
 
 ### BEGIN INIT INFO
 # Provides: varnish-agent

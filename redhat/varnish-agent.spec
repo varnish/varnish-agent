@@ -4,6 +4,7 @@ Version: 1.1
 Release: 1
 License: BSD
 Group: System Environment/Daemons
+BuildArch: noarch
 URL: http://github.com/varnish/varnish-agent/
 Source0: ./%{name}-trunk.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)

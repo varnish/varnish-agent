@@ -2,7 +2,6 @@
 #
 # varnish-agent - Varnish VAC Agent
 #
-# chkconfig: - 90 10
 # chkconfig: 2345 92 08
 # description: Agent for the Varnish Administration Console. (VAC)
 # processname: varnish-agent

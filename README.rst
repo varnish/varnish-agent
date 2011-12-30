@@ -37,4 +37,3 @@ Licensing
 ---------
 
 See the LICENCE.txt file for licensing information.
-

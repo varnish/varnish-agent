@@ -7,7 +7,7 @@ In its current shape it is a communication layer for the Varnish Administration
 Console (VAC) providered by Varnish Software AS.
 
 Upon starting, the agent will attempt to register itself with the VAC instance
-mentioned in the agent.conf configuration file.
+mentioned in the configuration file.
 
 
 Source

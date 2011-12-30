@@ -63,7 +63,7 @@ rm -rf %{buildroot}
 %defattr(-,root,root,-)
 %{_bindir}/*
 #%{_libdir}/varnish
-#%{_var}/lib/varnish
+%{_var}/lib/varnish-agent
 #%{_var}/log/varnish
 %{_mandir}/man1/*.1*
 #%{_mandir}/man3/*.3*

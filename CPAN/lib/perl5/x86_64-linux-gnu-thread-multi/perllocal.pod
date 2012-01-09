@@ -1,0 +1,66 @@
+=head2 Thu Jan  5 10:11:56 2012: C<Module> L<Reflex|Reflex>
+
+=over 4
+
+=item *
+
+C<installed into: /home/swl/kunder/varnish/agent2/lib/CPAN//lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.092>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  5 11:57:09 2012: C<Module> L<MooseX::ConfigFromFile|MooseX::ConfigFromFile>
+
+=over 4
+
+=item *
+
+C<installed into: /home/swl/kunder/varnish/agent2/lib/CPAN//lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.04>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+
+=head2 Thu Jan  5 11:57:42 2012: C<Module> L<MooseX::SimpleConfig|MooseX::SimpleConfig>
+
+=over 4
+
+=item *
+
+C<installed into: /home/swl/kunder/varnish/agent2/lib/CPAN//lib/perl5>
+
+=item *
+
+C<LINKTYPE: dynamic>
+
+=item *
+
+C<VERSION: 0.09>
+
+=item *
+
+C<EXE_FILES: >
+
+=back
+

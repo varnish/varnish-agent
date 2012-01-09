@@ -1,6 +1,7 @@
 package Varnish::VACAgent::VACClient;
 
 use Moose;
+use Socket;
 
 extends 'Reflex::Stream';
 
@@ -9,9 +10,10 @@ with 'Varnish::VACAgent::Role::Logging';
 
 
 
-has handle => (
+has event => (
     is => 'ro',
-    isa => 'FileHandle',
+    isa => 'Reflex::Event::Socket',
+#    handles => [ 'peer' ],
     required => 1,
 );
 
@@ -21,10 +23,68 @@ has agent => (
     lazy_build => 1,
 );
 
+has handle => (
+    is => 'ro',
+    isa => 'FileHandle',
+    lazy_build => 1,
+);
+
+has peer => (
+    is => 'ro',
+    isa => 'Str',
+    default => sub { $_[0]->event->peer() },
+);
+
+has remote_port => (
+    is => 'ro',
+    isa => 'Int',
+    lazy_build => 1,
+);
+
+has remote_ip_address => (
+    is => 'ro',
+    isa => 'Str',
+    lazy_build => 1,
+);
+
+has remote_hostname => (
+    is => 'ro',
+    isa => 'Str',
+    lazy_build => 1,
+);
+
 
 
 sub _build_agent {
     return Varnish::VACAgent::Singleton::Agent->instance();
+}
+
+sub _build_handle {
+    return $_[0]->event->handle;
+}
+
+
+                   # $hersockaddr    = getpeername(SOCK);
+                   # ($port, $iaddr) = sockaddr_in($hersockaddr);
+                   # $herhostname    = gethostbyaddr($iaddr, AF_INET);
+#                   $herstraddr     = inet_ntoa($iaddr);
+
+sub _build_remote_port {
+    my ($port, $iaddr) = sockaddr_in($_[0]->peer());
+    
+    return $port;
+}
+
+sub _build_remote_ip_address {
+    my ($port, $iaddr) = sockaddr_in($_[0]->peer());
+
+    return inet_ntoa($iaddr);
+}
+
+sub _build_remote_hostname {
+    my ($port, $iaddr) = sockaddr_in($_[0]->peer());
+
+    return gethostbyaddr($iaddr, AF_INET);
 }
 
 
@@ -34,7 +94,7 @@ sub on_data {
 
     $self->info("VACClient received data");
 
-    my $response = $self->agent->serve_vac_client_request($event->octets());
+    my $response = $self->agent->handle_vac_client_request($event->octets());
     $self->put($response);
 }
 

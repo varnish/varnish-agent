@@ -56,7 +56,7 @@ sub _build_master_listener {
 
 
 
-sub new_varnish_instance_started {
+sub new_varnish_instance {
     my $self = shift;
 
     $self->info("Newly started varnish instance detected");
@@ -64,11 +64,32 @@ sub new_varnish_instance_started {
 
 
 
-sub new_vac_connection {
-    my $self = shift;
+sub handle_varnish_request {
+    my ($self, $data) = @_;
 
-    $self->info("New VAC instance connected");
+    $self->info("Received data: ", $data, " from varnish");
+    return $data;
 }
+
+
+
+sub new_vac_client {
+    my ($self, $client) = @_;
+
+    $self->info("Accepted incoming VAC client connection from ",
+                $client->remote_ip_address, "/", $client->remote_port);
+
+}
+
+
+
+sub handle_vac_client_request {
+    my ($self, $data) = @_;
+
+    $self->info("Received data: ", $data, " from VAC");
+    return $data;
+}
+
 
 
 

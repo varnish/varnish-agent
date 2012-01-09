@@ -34,7 +34,7 @@ sub on_data {
 
     $self->info("VarnishInstance received data");
 
-    my $response = $self->agent->serve_varnish_request($event->octets());
+    my $response = $self->agent->handle_varnish_request($event->octets());
     $self->put($response);
 }
 

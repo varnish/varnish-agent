@@ -1,4 +1,4 @@
-package Varnish::VACAgent::Agent;
+package Varnish::VACAgent::Singleton::Agent;
 
 use 5.010;
 

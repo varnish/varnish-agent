@@ -7,10 +7,10 @@ use FindBin qw( $RealBin $RealScript );
 use lib abs_path($RealBin . '/../lib');
 use lib abs_path($RealBin . '/../CPAN/lib/perl5');
 
-use Varnish::VACAgent::Agent;
 use Varnish::VACAgent::Singleton::Config;
+use Varnish::VACAgent::Singleton::Agent;
 
 my $config = Varnish::VACAgent::Singleton::Config->new_with_options;
 my $agent  = Varnish::VACAgent::Singleton::Agent->new;
-
+             
 POE::Kernel->run();

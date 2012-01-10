@@ -52,6 +52,12 @@ sub _build_master_listener {
     return Varnish::VACAgent::MasterListener->new();
 }
 
+sub BUILD {
+    my $self = shift;
+
+    $self->info("Waiting for incoming connections");
+}
+
 
 
 sub new_varnish_instance {

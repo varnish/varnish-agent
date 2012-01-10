@@ -157,14 +157,15 @@ sub _calculate_log_level {
     my $config = $self->_config;
     
     if ($config->log_level) {
-        print "Configured log level: " . $config->log_level . "\n";
-        return $TRACE   if $config->log_level eq "trace";
-        return $DEBUG   if $config->log_level eq "debug";
-        return $INFO    if $config->log_level eq "info";
-        # return $NOTICE  if $config->log_level eq "notice";
-        return $WARN    if $config->log_level eq "warning";
-        return $WARN    if $config->log_level eq "warn";
-        return $ERROR   if $config->log_level eq "error";
+        my $log_level = $config->log_level;
+        print "Configured log level: " . $log_level . "\n";
+
+        return $TRACE  if $log_level eq "trace";
+        return $DEBUG  if $log_level eq "debug";
+        return $INFO   if $log_level eq "info";
+        return $WARN   if $log_level eq "warning";
+        return $WARN   if $log_level eq "warn";
+        return $ERROR  if $log_level eq "error";
     }
 
     print "No log level configured, using info\n";

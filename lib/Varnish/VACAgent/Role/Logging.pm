@@ -179,8 +179,10 @@ no Moose::Role;
 
 __END__
 
+
+
 =head1 AUTHOR
 
-Sigurd W. Larsen <swl@redpill-linpro.com>
+Sigurd W. Larsen
 
 =cut

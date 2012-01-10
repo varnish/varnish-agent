@@ -67,3 +67,9 @@ sub on_error {
 
 
 1;
+
+=head1 AUTHOR
+
+ Sigurd W. Larsen
+
+=cut

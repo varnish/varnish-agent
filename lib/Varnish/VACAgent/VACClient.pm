@@ -22,3 +22,13 @@ sub on_data {
 
 
 1;
+
+__END__
+
+
+
+=head1 AUTHOR
+
+ Sigurd W. Larsen
+
+=cut

@@ -102,3 +102,11 @@ sub DEMOLISH {
 
 
 1;
+
+
+
+=head1 AUTHOR
+
+ Sigurd W. Larsen
+
+=cut

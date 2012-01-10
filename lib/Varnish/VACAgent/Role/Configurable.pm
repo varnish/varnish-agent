@@ -30,3 +30,13 @@ sub _build__config {
 
 
 1;
+
+__END__
+
+
+
+=head1 AUTHOR
+
+ Sigurd W. Larsen
+
+=cut

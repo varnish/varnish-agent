@@ -92,3 +92,13 @@ sub handle_vac_client_request {
 
 
 1;
+
+__END__
+
+
+
+=head1 AUTHOR
+
+ Sigurd W. Larsen
+
+=cut

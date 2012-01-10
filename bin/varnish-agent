@@ -14,3 +14,15 @@ my $config = Varnish::VACAgent::Singleton::Config->new_with_options;
 my $agent  = Varnish::VACAgent::Singleton::Agent->new;
              
 POE::Kernel->run();
+
+
+
+__END__
+
+
+
+=head1 AUTHOR
+
+ Sigurd W. Larsen
+
+=cut

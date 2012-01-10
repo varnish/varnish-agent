@@ -308,3 +308,13 @@ sub _build_varnish_port {
 
 
 1;
+
+__END__
+
+
+
+=head1 AUTHOR
+
+ Sigurd W. Larsen
+
+=cut

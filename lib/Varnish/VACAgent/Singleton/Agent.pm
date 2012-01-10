@@ -46,8 +46,6 @@ sub _build_client_listener {
     return Varnish::VACAgent::ClientListener->new();
 }
 
-
-
 sub _build_master_listener {
     my $self = shift;
     $self->debug("_build_master_listener");

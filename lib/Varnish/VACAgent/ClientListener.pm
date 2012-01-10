@@ -41,15 +41,13 @@ sub _build_port {
 
 sub on_accept {
     my ($self, $event) = @_;
-    $self->debug("Event type: ", ref $event);
+    # $self->debug("Event type: ", ref $event);
     # $self->debug("Event: ", Dumper($event));
 
     my $agent = Varnish::VACAgent::Singleton::Agent->instance();
     my $client = Varnish::VACAgent::VACClient->new(event => $event);
-    $self->debug("on_accept after VACClient->new");
     $self->remember_vac($client);
     $agent->new_vac_client($client);
-    $self->debug("on_accept after new_vac_client");
 }
 
 

@@ -19,6 +19,282 @@ POE::Kernel->run();
 
 __END__
 
+=head1 NAME
+
+varnish-agent.pl
+
+=head1 SYNOPSIS
+
+varnish-agent
+
+  Options:
+    --help|-?				Brief help message
+    --man				Print manual page
+    -c <config-file>			Read configuration from file
+    -F					Run in foreground
+    -d					Turn on debugging output
+    -P <pid-file>			Write PID to file
+    -T <addr:port> (:6083)		CLI listen port
+    -b <addr:port> (localhost:6082)	Varnish CLI port
+    -M <addr:port> (localhost:6084)	Master CLI listen port
+    -f <path> (agent.vcl)		Current running vcl file
+    -p <path> (agent.param)		Saved parameter storage file
+    -S <path>				Secret file
+    -n <instance-id> (hostname)		Instance ID when calling home
+    -u <call-home-url>			Call home URL
+    -C <ca-file>			CA file for SSL peer verification
+
+=head1 OPTIONS
+
+=over 8
+
+=item B<--help>
+
+Print a brief help message and exits.
+
+=item B<--man>
+
+Prints the manual page and exits.
+
+=item B<-c> <config-file>
+
+Reads configuration from config-file. See section CONFIGURATION FILE.
+
+=item B<-F>
+
+Run in the foreground, don't daemonize
+
+=item B<-d>
+
+Turns on verbose debugging output and sets -F
+
+=item B<-P> <pid-file>
+
+Check if it is already running, and record the PID of the agent in
+<pid-file>
+
+  Default: /var/run/varnish-agent.pid
+  Config key: PIDFile
+
+=item B<-T> <:6083>
+
+Sets the incoming CLI connection listen address. This is the address
+CLI clients should contact when going through the agent
+
+  Default: :6083
+  Config key: ListenAddress
+
+=item B<-b> <localhost:6082>
+
+Sets the varnishd CLI address. This is the address the agent will
+contact varnishd on.
+
+  Default: localhost:6082
+  Config key: VarnishAddress
+
+=item B<-M> <localhost:6084>
+
+Sets the incoming Master connection listen address. This is the
+address varnishd will contact the agent on when starting up in Master
+mode.
+
+  Default: localhost:6084
+  Config key: MasterAddress
+
+=item B<-f> <agent.vcl>
+
+Point to the file where the current running VCL configuration will be
+stored by the agent.
+
+  Default: /var/lib/varnish-agent/agent.vcl
+  Config key: VCLFile
+
+=item B<-p> <agent.param>
+
+Point to the file where the current set parameters will be stored by
+the agent.
+
+  Default: /var/lib/varnish-agent/agent.param
+  Config key: ParamsFile
+
+=item B<-S>
+
+Point to the file containing the shared secret key, and directs the
+agent to use shared secret authentication
+
+  Default: <undefined>
+  Config key: SecretFile
+
+=item B<-n>
+
+Set the instance ID of this cache to report when calling
+home. Defaults to the hostname. See section CALLING HOME
+
+  Default: hostname
+  Config key: InstanceID
+
+=item B<-u>
+
+Set the call home URL and enable call home on startup. See section
+CALLING HOME
+
+  Default: <undefined>
+  Config key: CallHomeURL
+
+=item B<-C>
+
+Set the CA file for SSL peer verification when calling home. See
+section CALLING HOME
+
+  Default: <undefined>
+  Config key: SSLCAFile
+
+=back
+
+=head1 CONFIG FILE
+
+You can specify a config file using the -c option. The default values
+built in are as if the following configuration file was read at
+startup.
+
+    Debug		"0"
+    PIDFile		"/var/run/varnish-agent.pid"
+    ListenAddress	":6083"
+    MasterAddress	"localhost:6084"
+    VarnishAddress	"localhost:6082"
+    SecretFile
+    VCLFile		"/var/lib/varnish-agent/agent.vcl"
+    ParamsFile		"/var/lib/varnish-agent/agent.param"
+    VarnishStat		"varnishstat -1"
+    InstanceID		<hostname>
+    CallHomeURL
+    SSLCAFile
+
+=head2 Configuration parameters
+
+=over 8
+
+=item B<Debug> "0"
+
+Enables more verbose debug log
+
+=item B<PIDFile> "/etc/varnish/agent.pid"
+
+Write process ID to specified file
+
+=item B<ListenAddress> ":6083"
+
+See description of C<-T> command line option
+
+=item B<MasterAddress> "localhost:6084"
+
+See description of C<-M> command line option
+
+=item B<VarnishAddress> "localhost:6082"
+
+See description of C<-b> command line option
+
+=item B<SecretFile>
+
+See description of C<-S> command line option
+
+=item B<VCLFile>
+
+See description of C<-f> command line option
+
+=item B<ParamsFile>
+
+See description of C<-p> command line option
+
+=item B<VarnishStat>
+
+Identifies the command to run on the 'agent.stat' command which will be
+piped to the calling process
+
+=item B<InstanceID>
+
+The instance ID of this cache. Defaults to the hostname.
+
+=item B<CallHomeURL>
+
+If set will call home on startup to the specified URL.
+
+=item B<SSLCAFile>
+
+SSL CA file from which to verify the peer host when calling home
+through SSL. Without this peer verification is disabled.
+
+=back
+
+=head1 SPECIAL COMMANDS
+
+These are CLI commands the agent treats specially. The commands are
+intercepted, some action or manipulation is done by the agent, before
+sending the command to varnishd for execution. Some commands are
+handled solely by the agent, these commands are prefixed C<agent.>
+
+=over 8
+
+=item auth
+
+This command is intercepted by the agent to keep track of wether a
+connection has been authenticated or not. Always proxied to Varnish.
+
+=item vcl.use
+
+This command is intercepted by the agent, and the agent will if
+Varnish reports the VCL was taken into use successfully, store this
+VCL as the active VCL to push to varnish on new master connections
+
+=item param.set
+
+This command is intercepted by the agent, and will be stored as a
+parameter with value to set on new master connections
+
+=item agent.stat
+
+This command is handled solely by the agent. Will execute the
+VarnishStat configuration command and send the result as the
+response. Reports CLIS_CANT on error. Will require an authenticated
+connection if the SecretFile is specified.
+
+=back
+
+=head1 CALLING HOME
+
+If the call home URL is given, the agent will at startup perform a
+call home. SSL is supported, but peer verification is only performed
+if you supply a SSL ca file to verify against.
+
+It will supply the following information in a REST call:
+
+=over 8
+
+=item ip
+
+The IP of the running server (on whichever interface that the
+CallHomeURL is reachable from that server)
+
+=item port
+
+The CLI port this agent instance is configured to call varnishd on
+
+=item cliPort
+
+The CLI port this agent is listening on
+
+=item secret
+
+Only supplied if the agent is configured to use secret authentication
+
+=item agentId
+
+The content of InstanceID
+
+=back
+
+=cut
+
 
 
 =head1 AUTHOR

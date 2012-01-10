@@ -33,6 +33,16 @@ has port => (
     lazy_build => 1,
 );
 
+has client_counter => (
+    is => 'rw',
+    isa => 'Int',
+    traits => [ 'Counter' ],
+    handles => {
+        _count_client => 'inc',
+    },
+    default => 0,
+);
+
 
 
 sub _build_listener {

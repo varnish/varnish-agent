@@ -47,6 +47,8 @@ sub on_accept {
     my $agent = Varnish::VACAgent::Singleton::Agent->instance();
     my $client = Varnish::VACAgent::VACClient->new(event => $event);
     $self->remember_vac($client);
+    $self->_count_client();
+    $self->info(sprintf("C%5d", $self->client_counter));
     $agent->new_vac_client($client);
 }
 

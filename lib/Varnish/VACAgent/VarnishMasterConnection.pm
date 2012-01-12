@@ -1,8 +1,8 @@
-package Varnish::VACAgent::VarnishInstance;
+package Varnish::VACAgent::VarnishMasterConnection;
 
 use Moose;
 
-extends 'Varnish::VACAgent::SocketClient';
+extends 'Varnish::VACAgent::AcceptedIncomingConnection';
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
@@ -14,7 +14,8 @@ sub on_data {
 
     $self->info("VarnishInstance received data");
 
-    my $response = $self->agent->handle_varnish_request($event->octets());
+    my $response =
+        $self->agent->handle_varnish_master_request($event->octets());
     $self->put($response);
 }
 

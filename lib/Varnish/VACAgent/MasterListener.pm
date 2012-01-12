@@ -6,7 +6,7 @@ use Data::Dumper;
 
 use Reflex::Collection;
 
-use Varnish::VACAgent::VarnishInstance;
+use Varnish::VACAgent::VarnishMasterConnection;
 
 
 extends 'Varnish::VACAgent::SocketListener';
@@ -43,7 +43,9 @@ sub on_accept {
     # $self->debug("Event type: ", ref $event);
     
     my $agent = Varnish::VACAgent::Singleton::Agent->instance();
-    my $varnish = Varnish::VACAgent::VarnishInstance->new(event => $event);
+    my $varnish =
+        Varnish::VACAgent::VarnishMasterConnection->new(connection_event =>
+                                                            $event);
     
     $self->remember_varnish($varnish);
     $self->_count_client();

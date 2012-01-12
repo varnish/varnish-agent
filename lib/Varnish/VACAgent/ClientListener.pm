@@ -45,7 +45,7 @@ sub on_accept {
     # $self->debug("Event: ", Dumper($event));
 
     my $agent = Varnish::VACAgent::Singleton::Agent->instance();
-    my $client = Varnish::VACAgent::VACClient->new(event => $event);
+    my $client = Varnish::VACAgent::VACClient->new(connection_event => $event);
     $self->remember_vac($client);
     $self->_count_client();
     $self->info(sprintf("C%5d", $self->client_counter));

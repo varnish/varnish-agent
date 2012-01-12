@@ -1,4 +1,4 @@
-package Varnish::VACAgent::SocketClient;
+package Varnish::VACAgent::AcceptedIncomingConnection;
 
 use Moose;
 use Socket;
@@ -10,10 +10,16 @@ with 'Varnish::VACAgent::Role::Logging';
 
 
 
-has event => (
+has connection_event => (
     is => 'ro',
     isa => 'Reflex::Event::Socket',
     required => 1,
+);
+
+has stream => (
+    is => 'rw',
+    isa => 'Reflex::Stream',
+    lazy_build => 1,
 );
 
 has agent => (
@@ -31,7 +37,7 @@ has handle => (
 has peer => (
     is => 'ro',
     isa => 'Str',
-    default => sub { $_[0]->event->peer() },
+    default => sub { $_[0]->connection_event->peer() },
 );
 
 has remote_port => (
@@ -54,12 +60,18 @@ has remote_hostname => (
 
 
 
+sub _build_stream {
+    my $self = shift;
+
+    return Reflex::Stream->new(handle => $self->handle());
+}
+
 sub _build_agent {
     return Varnish::VACAgent::Singleton::Agent->instance();
 }
 
 sub _build_handle {
-    return $_[0]->event->handle;
+    return $_[0]->connection_event->handle();
 }
 
 sub _build_remote_port {

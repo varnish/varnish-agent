@@ -2,11 +2,20 @@ package Varnish::VACAgent::VACClient;
 
 use Moose;
 use Socket;
+use Data::Dumper;
 
-extends 'Varnish::VACAgent::SocketClient';
+use Reflex::Connector;
+
+extends 'Varnish::VACAgent::AcceptedIncomingConnection';
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
+
+
+has data => (
+    is => 'rw',
+    isa => 'Str',
+);
 
 
 
@@ -15,9 +24,21 @@ sub on_data {
 
     $self->info("VACClient received data");
 
-    my $response = $self->agent->handle_vac_client_request($event->octets());
-    $self->put($response);
+    $self->data($event->octets());
+    my $agent = Varnish::VACAgent::Singleton::Agent->instance();
+    $agent->handle_vac_request($self);
 }
+
+
+
+sub put {
+    my ($self, $data) = @_;
+    
+    $self->stream->put($data);
+}
+
+
+
 
 
 

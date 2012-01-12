@@ -8,6 +8,7 @@ use Data::Dumper;
 
 use Varnish::VACAgent::ClientListener;
 use Varnish::VACAgent::MasterListener;
+use Varnish::VACAgent::VarnishClientConnection;
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
@@ -68,7 +69,7 @@ sub new_varnish_instance {
 
 
 
-sub handle_varnish_request {
+sub handle_varnish_master_request {
     my ($self, $data) = @_;
 
     $self->info("Received data: ", $data, " from varnish");
@@ -87,12 +88,82 @@ sub new_vac_client {
 
 
 
-sub handle_vac_client_request {
-    my ($self, $data) = @_;
+sub handle_vac_request {
+    my ($self, $vac) = @_;
 
-    $self->info("Received data: ", $data, " from VAC");
-    return $data;
+        #my $response = "";
+    my $varnish = $self->_connect_to_varnish();
+    $varnish->put($vac->data());
+    
+    my $response = $varnish->response();
+    $self->debug("Response: ", Dumper($response));
+    
+    $vac->put($response->{data});
+    # Read initial varnish response
+    # die "Bad varnish server initial response" unless(defined $response && ($response->{status} == CLIS_OK || $response->{status} == CLIS_AUTH));
+
+    # send_response($client, $response);
+
+    # my $s = IO::Select->new();
+    # $s->add($client);
+    # $s->add($varnish);
+
+    # # Our connection context
+    # my $c = {
+    #     client => $client,
+    #     varnish => $varnish,
+    #     authenticated => 0,
+    # };
+
+    # eval {
+    #   LOOP: while(1) {
+    #       my @ready = $s->can_read;
+    #       for my $fh (@ready) {
+    #           if($fh == $client) {
+    #     	  if($fh->eof()) {
+    #     	      INFO "Client closed connection";
+    #     	      last LOOP;
+    #     	  }
+    #     	  my $command = receive_command_2($client, $c->{authenticated});
+    #     	  if($command->{line} gt '') {
+    #     	      handle_command($c, $command);
+    #     	  }
+    #           } elsif($fh == $varnish) {
+    #     	  if($fh->eof()) {
+    #     	      INFO "Varnish closed connection";
+    #     	      last LOOP;
+    #     	  }
+    #     	  # Out of sync varnish message
+    #     	  DEBUG "Varnish unexpectedly ready for reading";
+    #     	  my $response = receive_response($varnish);
+    #     	  send_response($client, $response);
+    #           }
+    #       }
+    #   }
+    # };
+    # die $@ if $@ && $@ !~ /^sigexit/;
+
+    # INFO "Client handler down connection";
+    # close $varnish;
+    # close $client;
+    # exit 0;
 }
+
+
+
+sub _connect_to_varnish {
+    my $self = shift;
+    
+    my $address = $self->_config->varnish_address();
+    my $port    = $self->_config->varnish_port();
+    my $varnish =
+        Varnish::VACAgent::VarnishClientConnection->new(address => $address,
+                                                        port => $port);
+    
+    return $varnish;
+}
+
+
 
 
 

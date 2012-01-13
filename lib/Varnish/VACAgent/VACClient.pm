@@ -12,6 +12,11 @@ with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
 
 
+has session => (
+    is => 'rw',
+    isa => 'Varnish::VACAgent::ProxySession',
+);
+
 has data => (
     is => 'rw',
     isa => 'Str',
@@ -22,11 +27,10 @@ has data => (
 sub on_data {
     my ($self, $event) = @_;
 
-    $self->info("VACClient received data");
-
+    $self->info("VACClient received data: ", $event->octets());
+    
     $self->data($event->octets());
-    my $agent = Varnish::VACAgent::Singleton::Agent->instance();
-    $agent->handle_vac_request($self);
+    $self->session->handle_vac_request();
 }
 
 

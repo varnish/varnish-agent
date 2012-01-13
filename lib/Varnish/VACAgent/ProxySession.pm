@@ -1,137 +1,69 @@
-package Varnish::VACAgent::Singleton::Agent;
+package Varnish::VACAgent::ProxySession;
 
+use Moose;
 use 5.010;
-
-use MooseX::Singleton;
 use Data::Dumper;
 
-use Reflex::Interval;
-
-use Varnish::VACAgent::ClientListener;
-use Varnish::VACAgent::MasterListener;
 use Varnish::VACAgent::VarnishClientConnection;
-use Varnish::VACAgent::ProxySession;
+
+
+
+has id => (
+    is => 'ro',
+    isa => 'Str',
+    required => 1,
+);
+
+has vac => (
+    is => 'ro',
+    isa => 'Varnish::VACAgent::VACClient',
+    required => 1,
+);
+
+has varnish_client_connection => (
+    is => 'rw',
+    isa => 'Maybe[Varnish::VACAgent::VarnishClientConnection]',
+    lazy_build => 1,
+);
+
+has id => (
+    is => 'rw',
+    isa => 'Int',
+    required => 1,
+);
+
+
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
 
 
 
-# has _job_manager => (
-#     isa => 'Varnish::VACAgent::JobManager',
-#     is => 'ro',
-#     builder => '_build__job_manager',
-#);
-
-has client_listener => (
-    is         => 'rw',
-    isa        => 'Varnish::VACAgent::ClientListener',
-    builder => '_build_client_listener',
-);
-
-has master_listener => (
-    is         => 'rw',
-    isa        => 'Varnish::VACAgent::MasterListener',
-    builder => '_build_master_listener',
-);
-
-has proxy_sessions => (
-    is => 'ro',
-    isa => 'HashRef[Varnish::VACAgent::ProxySession]',
-    default => sub {{}},
-);
-
-has varnish_client_connection => (
-    is => 'rw',
-    isa => 'Maybe[Varnish::VACAgent::VarnishClientConnection]',
-    default => undef,
-);
-
-has ticker => ( # Prove that we're non-blocking
-    is => 'ro',
-    isa => 'Reflex::Interval',
-    builder => '_build_ticker',
-);
-
-has _session_id => (
-    is => 'rw',
-    isa => 'Int',
-    traits => ['Counter'],
-    handles => { _increment_session_id => 'inc' },
-);
-
-
-
-sub _build_client_listener {
-    my $self = shift;
-    $self->debug("_build_client_listener");
-    return Varnish::VACAgent::ClientListener->new();
-}
-
-sub _build_master_listener {
-    my $self = shift;
-    $self->debug("_build_master_listener");
-    return Varnish::VACAgent::MasterListener->new();
-}
-
-sub _build_ticker {
-    my $self = shift;
-    
-    return Reflex::Interval->new(
-        interval    => rand(5) + 1,
-        auto_repeat => 1,
-        on_tick     => sub { $self->debug("Agent: tick\n") },
-    );
-}
-
 sub BUILD {
     my $self = shift;
 
-    $self->info("Waiting for incoming connections");
+    $self->varnish_client_connection(); # Touch it into existence
 }
 
 
 
-sub new_varnish_instance {
+sub _build_varnish_client_connection {
     my $self = shift;
-
-    $self->info("Newly started varnish instance detected");
-}
-
-
-
-sub handle_varnish_master_request {
-    my ($self, $data) = @_;
-
-    $self->info("Received data: ", $data, " from varnish");
-    return $data;
-}
-
-
-
-sub new_proxy_session {
-    my ($self, $vac) = @_;
-
-    $self->info("Accepted incoming VAC client connection from ",
-                $vac->remote_ip_address, "/",
-                $vac->remote_port);
-    my $session_id = $self->_next_session_id();
-    my $session =
-        Varnish::VACAgent::ProxySession->new(id => $session_id, vac => $vac);
-    $vac->session($session);
-    $self->proxy_sessions()->{$session_id} = $session;
     
-    return $session;
-}
-
-
-
-sub terminate_proxy_session {
-    my ($self, $proxy_id) = @_;
+    $self->debug("Creating varnish client connection");
+    $self->debug("ProxySession, _config: ", Dumper($self->_config()));
+    my $varnish = $self->_connect_to_varnish();
+    $self->debug("1");
+    my $response = $varnish->response();
+    $self->debug("2");
+    $self->debug("_build_varnish_client_connection, response: ",
+                 Dumper($response));
+    $self->vac->put($response->{data});
+    $self->debug("4");
     
-    $self->debug("Terminating proxy session $proxy_id");
-    $self->proxy_sessions()->{$proxy_id} = undef;
+    return $varnish;
 }
+
 
 
 # A VAC request should result in a new connection to Varnish dedicated
@@ -155,18 +87,33 @@ sub terminate_proxy_session {
 
 
 sub handle_vac_request {
-    my ($self, $vac) = @_;
+    my $self = shift;
+
+    my $vac = $self->vac();
 
     # Varnish produces a "welcome message" upon successful
     # connect. Need to read and handle that when a new varnish
     # connection is created.
 
     my $varnish = $self->varnish_client_connection();
-    $varnish->put($vac->data());
     
-    my $response = $varnish->response();
-    $self->debug("handle_vac_request, response: ", Dumper($response));
-    
+    my $response;
+    eval {
+        $varnish->put($vac->data());
+        
+        $response = $varnish->response();
+        $self->debug("handle_vac_request, response: ", Dumper($response));
+    };
+    if ($@) {
+        if ($@ =~ /EOF/) {
+            $self->debug("Caught \"", $@, '"');
+            my $agent = Varnish::VACAgent::Singleton::Agent->instance();
+            $agent->terminate_proxy_session($self->id());
+        } else {
+            $self->debug("Caught unknown exception: \"", $@, '"');
+        }
+    }
+
     $vac->put($response->{data});
     # Read initial varnish response
     # die "Bad varnish server initial response" unless(defined $response && ($response->{status} == CLIS_OK || $response->{status} == CLIS_AUTH));
@@ -220,15 +167,6 @@ sub handle_vac_request {
 
 
 
-sub _next_session_id {
-    my $self = shift;
-
-    $self->_increment_session_id();
-    return $self->_session_id();
-}
-
-
-
 sub _connect_to_varnish {
     my $self = shift;
     
@@ -240,6 +178,40 @@ sub _connect_to_varnish {
     $self->varnish_client_connection($varnish);
     
     return $varnish;
+}
+
+
+
+sub receive_command_2 {
+    my ($self, $socket, $authenticated) = @_;
+    
+    $self->debug("authenticated=$authenticated");
+
+    # my $line = <$socket>;
+    # $self->debug("C->A: ".pretty_line($line));
+    # $line = chomp_line($line);
+    # my $tmp = $line;
+    # my $heredoc = undef;
+    # if ($authenticated && $tmp =~ s/ << (\w+)$//) {
+    #     # Here-document
+    #     my $token = $1;
+    #     my $part;
+    #     while (1) {
+    #         $part = <$socket>
+    #     	or die $!;
+    #         last if (chomp_line($part) eq $token);
+    #         $heredoc .= $part;
+    #     }
+    # }
+    # my @args = unquote($tmp);
+    # my $command = shift @args;
+    # push @args, $heredoc if defined $heredoc;
+    # return {
+    #     line => $line,
+    #     command => $command,
+    #     args => \@args,
+    #     heredoc => defined $heredoc ? 1 : 0,
+    # };
 }
 
 

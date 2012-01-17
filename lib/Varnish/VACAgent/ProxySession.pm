@@ -90,31 +90,17 @@ sub handle_vac_request {
     my $self = shift;
 
     my $vac = $self->vac();
-
-    # Varnish produces a "welcome message" upon successful
-    # connect. Need to read and handle that when a new varnish
-    # connection is created.
-
     my $varnish = $self->varnish();
-    
     my $response;
-    eval {
-        $varnish->put($vac->data());
-        
-        $response = $varnish->response();
-        $self->debug("handle_vac_request, response: ", Dumper($response));
-    };
-    if ($@) {
-        if ($@ =~ /^EOF/) {
-            $self->debug("Caught EOF: \"", $@, '"');
-            my $agent = Varnish::VACAgent::Singleton::Agent->instance();
-            $agent->terminate_proxy_session($self->id());
-        } else {
-            $self->debug("Caught unknown exception: \"", $@, '"');
-        }
-    }
+
+    $varnish->put($vac->data());
+    
+    $response = $varnish->response();
+    $self->debug("handle_vac_request, response: ", Dumper($response));
 
     $vac->put($response->{data});
+
+
     # Read initial varnish response
     # die "Bad varnish server initial response" unless(defined $response && ($response->{status} == CLIS_OK || $response->{status} == CLIS_AUTH));
 

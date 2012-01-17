@@ -20,7 +20,7 @@ has vac => (
     required => 1,
 );
 
-has varnish_client_connection => (
+has varnish => (
     is => 'rw',
     isa => 'Maybe[Varnish::VACAgent::VarnishClientConnection]',
     lazy_build => 1,
@@ -42,12 +42,12 @@ with 'Varnish::VACAgent::Role::Logging';
 sub BUILD {
     my $self = shift;
 
-    $self->varnish_client_connection(); # Touch it into existence
+    $self->varnish(); # Touch it into existence
 }
 
 
 
-sub _build_varnish_client_connection {
+sub _build_varnish {
     my $self = shift;
     
     $self->debug("Creating varnish client connection");
@@ -56,7 +56,7 @@ sub _build_varnish_client_connection {
     $self->debug("1");
     my $response = $varnish->response();
     $self->debug("2");
-    $self->debug("_build_varnish_client_connection, response: ",
+    $self->debug("_build_varnish, response: ",
                  Dumper($response));
     $self->vac->put($response->{data});
     $self->debug("4");
@@ -95,7 +95,7 @@ sub handle_vac_request {
     # connect. Need to read and handle that when a new varnish
     # connection is created.
 
-    my $varnish = $self->varnish_client_connection();
+    my $varnish = $self->varnish();
     
     my $response;
     eval {
@@ -105,8 +105,8 @@ sub handle_vac_request {
         $self->debug("handle_vac_request, response: ", Dumper($response));
     };
     if ($@) {
-        if ($@ =~ /EOF/) {
-            $self->debug("Caught \"", $@, '"');
+        if ($@ =~ /^EOF/) {
+            $self->debug("Caught EOF: \"", $@, '"');
             my $agent = Varnish::VACAgent::Singleton::Agent->instance();
             $agent->terminate_proxy_session($self->id());
         } else {
@@ -170,12 +170,14 @@ sub handle_vac_request {
 sub _connect_to_varnish {
     my $self = shift;
     
+    my $id = $self->id();
     my $address = $self->_config->varnish_address();
     my $port    = $self->_config->varnish_port();
     my $varnish =
-        Varnish::VACAgent::VarnishClientConnection->new(address => $address,
+        Varnish::VACAgent::VarnishClientConnection->new(proxy_session_id => $id,
+                                                        address => $address,
                                                         port => $port);
-    $self->varnish_client_connection($varnish);
+    $self->varnish($varnish);
     
     return $varnish;
 }
@@ -212,6 +214,24 @@ sub receive_command_2 {
     #     args => \@args,
     #     heredoc => defined $heredoc ? 1 : 0,
     # };
+}
+
+
+
+sub terminate {
+    my $self = shift;
+    
+    $self->debug("ProxySession->terminate");
+    $self->vac->terminate();
+    $self->varnish->terminate();
+}
+
+
+
+sub DEMOLISH {
+    my $self = shift; 
+   
+    $self->debug("ProxySession ", $self->id(), " demolished");
 }
 
 

@@ -58,6 +58,7 @@ has _session_id => (
     isa => 'Int',
     traits => ['Counter'],
     handles => { _increment_session_id => 'inc' },
+    default => 0,
 );
 
 
@@ -118,7 +119,8 @@ sub new_proxy_session {
     my $session_id = $self->_next_session_id();
     my $session =
         Varnish::VACAgent::ProxySession->new(id => $session_id, vac => $vac);
-    $vac->session($session);
+    $vac->proxy_session($session);
+    $vac->proxy_session_id($session_id);
     $self->proxy_sessions()->{$session_id} = $session;
     
     return $session;
@@ -130,6 +132,8 @@ sub terminate_proxy_session {
     my ($self, $proxy_id) = @_;
     
     $self->debug("Terminating proxy session $proxy_id");
+    my $session = $self->proxy_sessions()->{$proxy_id};
+    $session->terminate();
     $self->proxy_sessions()->{$proxy_id} = undef;
 }
 

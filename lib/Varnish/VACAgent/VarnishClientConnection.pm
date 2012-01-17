@@ -14,6 +14,12 @@ with 'Varnish::VACAgent::Role::Logging';
 
 
 
+has proxy_session_id => (
+    is => 'ro',
+    isa => 'Int',
+    required => 1,
+);
+
 has stream => (
     is => 'rw',
     isa => 'Reflex::Stream',
@@ -35,7 +41,7 @@ sub on_closed {
     my ($self, $event) = @_;
     
     $self->debug("Varnish terminated the connection!");
-    $self->stream->stop();
+    $self->_trigger_termination();
 }
 
 
@@ -46,6 +52,23 @@ sub put {
     $self->debug("in put()");
     $self->stream->put($data);
     $self->debug("in put() after stream->put()");
+}
+
+
+
+sub _trigger_termination {
+    my $self = shift;
+    
+    my $agent = Varnish::VACAgent::Singleton::Agent->instance();
+    $agent->terminate_proxy_session($self->proxy_session_id());
+}
+
+
+    
+sub terminate {
+    my $self = shift;
+
+    $self->stream->stop();
 }
 
 
@@ -104,6 +127,14 @@ sub pretty_line {
 	$line = substr($line, 0, 253)."...";
     }
     return Data::Dumper->new([$line])->Useqq(1)->Terse(1)->Indent(0)->Dump;
+}
+
+
+
+sub DEMOLISH {
+    my $self = shift; 
+   
+    $self->debug("VarnishClientConnection demolished");
 }
 
 

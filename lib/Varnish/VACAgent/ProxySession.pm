@@ -66,6 +66,33 @@ sub _build_varnish {
 
 
 
+sub _connect_to_varnish {
+    my $self = shift;
+    
+    my $id = $self->id();
+    my $address = $self->_config->varnish_address();
+    my $port    = $self->_config->varnish_port();
+    my $varnish =
+        Varnish::VACAgent::VarnishClientConnection->new(proxy_session_id => $id,
+                                                        address => $address,
+                                                        port => $port);
+    $self->varnish($varnish);
+    
+    return $varnish;
+}
+
+
+
+sub terminate {
+    my $self = shift;
+    
+    $self->debug("ProxySession->terminate");
+    $self->vac->terminate();
+    $self->varnish->terminate();
+}
+
+
+
 # A VAC request should result in a new connection to Varnish dedicated
 # to this VAC session. As long as neither VAC nor Varnish has closed
 # their end of the socket, this session should continue.
@@ -153,23 +180,6 @@ sub handle_vac_request {
 
 
 
-sub _connect_to_varnish {
-    my $self = shift;
-    
-    my $id = $self->id();
-    my $address = $self->_config->varnish_address();
-    my $port    = $self->_config->varnish_port();
-    my $varnish =
-        Varnish::VACAgent::VarnishClientConnection->new(proxy_session_id => $id,
-                                                        address => $address,
-                                                        port => $port);
-    $self->varnish($varnish);
-    
-    return $varnish;
-}
-
-
-
 sub receive_command_2 {
     my ($self, $socket, $authenticated) = @_;
     
@@ -200,16 +210,6 @@ sub receive_command_2 {
     #     args => \@args,
     #     heredoc => defined $heredoc ? 1 : 0,
     # };
-}
-
-
-
-sub terminate {
-    my $self = shift;
-    
-    $self->debug("ProxySession->terminate");
-    $self->vac->terminate();
-    $self->varnish->terminate();
 }
 
 

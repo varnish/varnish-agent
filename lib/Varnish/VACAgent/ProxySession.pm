@@ -5,6 +5,7 @@ use 5.010;
 use Data::Dumper;
 
 use Varnish::VACAgent::VarnishClientConnection;
+use Varnish::VACAgent::VarnishResponse;
 
 
 
@@ -51,15 +52,16 @@ sub _build_varnish {
     my $self = shift;
     
     $self->debug("Creating varnish client connection");
-    $self->debug("ProxySession, _config: ", Dumper($self->_config()));
     my $varnish = $self->_connect_to_varnish();
-    $self->debug("1");
     my $response = $varnish->response();
-    $self->debug("2");
-    $self->debug("_build_varnish, response: ",
-                 Dumper($response));
-    $self->vac->put($response->{data});
-    $self->debug("4");
+
+    if (! ($response->is_ok() || $response->is_auth())) {
+        die "Bad varnish server initial response: ", $response->status(),
+            " ", $response->message();
+    }
+    
+    $self->debug("_build_varnish, response: ", Dumper($response->message()));
+    $self->vac->put($response->message());
     
     return $varnish;
 }
@@ -123,59 +125,10 @@ sub handle_vac_request {
     $varnish->put($vac->data());
     
     $response = $varnish->response();
-    $self->debug("handle_vac_request, response: ", Dumper($response));
+    $self->debug("handle_vac_request, status: ", $response->status(),
+                 ", message: ", $response->message());
 
-    $vac->put($response->{data});
-
-
-    # Read initial varnish response
-    # die "Bad varnish server initial response" unless(defined $response && ($response->{status} == CLIS_OK || $response->{status} == CLIS_AUTH));
-
-    # send_response($client, $response);
-
-    # my $s = IO::Select->new();
-    # $s->add($client);
-    # $s->add($varnish);
-
-    # # Our connection context
-    # my $c = {
-    #     client => $client,
-    #     varnish => $varnish,
-    #     authenticated => 0,
-    # };
-
-    # eval {
-    #   LOOP: while(1) {
-    #       my @ready = $s->can_read;
-    #       for my $fh (@ready) {
-    #           if($fh == $client) {
-    #     	  if($fh->eof()) {
-    #     	      INFO "Client closed connection";
-    #     	      last LOOP;
-    #     	  }
-    #     	  my $command = receive_command_2($client, $c->{authenticated});
-    #     	  if($command->{line} gt '') {
-    #     	      handle_command($c, $command);
-    #     	  }
-    #           } elsif($fh == $varnish) {
-    #     	  if($fh->eof()) {
-    #     	      INFO "Varnish closed connection";
-    #     	      last LOOP;
-    #     	  }
-    #     	  # Out of sync varnish message
-    #     	  DEBUG "Varnish unexpectedly ready for reading";
-    #     	  my $response = receive_response($varnish);
-    #     	  send_response($client, $response);
-    #           }
-    #       }
-    #   }
-    # };
-    # die $@ if $@ && $@ !~ /^sigexit/;
-
-    # INFO "Client handler down connection";
-    # close $varnish;
-    # close $client;
-    # exit 0;
+    $vac->put($response->message());
 }
 
 

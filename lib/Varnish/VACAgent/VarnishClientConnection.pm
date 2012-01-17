@@ -88,7 +88,6 @@ sub response {
     }
     
     my $response = $self->receive_response($response_event);
-    $self->debug("Response: ", Dumper($response));
     return $response;
 }
 
@@ -99,37 +98,16 @@ sub receive_response {
     
     my $data = $event->octets();
     chomp($data);
-    $self->debug("receive_response, data: ", $data);
     $data =~ m/^(\d+)\s+(\d+)\s*$(?:\n)?(^.*)/ms
 	or die "CLI protocol error: Syntax error";
-    my ($status, $length, $response) = ($1, $2, $3);
+    my ($status, $length, $message) = ($1, $2, $3);
     
-    $self->debug("response w/o header: \"", $response, '"');
-    my $received_length = bytes::length($response);
-    
-    if ($received_length != $length) {
-        die "CLI communication error. Expected to read $length bytes, " .
-            "but read $received_length: $!";
-    }
-    $self->debug("V->A: " . $self->pretty_line($response));
-
-    return { status => $status, data => $response };
+    return Varnish::VACAgent::VarnishResponse->new(status  => $status,
+                                                   length  => $length,
+                                                   message => $message);
 }
 
     
-
-# Escape special chars in a string
-sub pretty_line {
-    my ($self, $line) = @_;
-    
-    $self->debug("pretty_line, line: ", $line);
-    if (length($line) >= 256) {
-	$line = substr($line, 0, 253)."...";
-    }
-    return Data::Dumper->new([$line])->Useqq(1)->Terse(1)->Indent(0)->Dump;
-}
-
-
 
 sub DEMOLISH {
     my $self = shift; 

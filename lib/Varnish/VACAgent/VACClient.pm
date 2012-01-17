@@ -12,6 +12,7 @@ with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
 
 
+
 has proxy_session => (
     is => 'rw',
     isa => 'Maybe[Varnish::VACAgent::ProxySession]',

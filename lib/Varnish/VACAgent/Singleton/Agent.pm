@@ -138,32 +138,9 @@ sub terminate_proxy_session {
 }
 
 
-# A VAC request should result in a new connection to Varnish dedicated
-# to this VAC session. As long as neither VAC nor Varnish has closed
-# their end of the socket, this session should continue.
-#
-# It would be wrong to create a new connection to varnish every time
-# the VAC transmits data.
-# 
-# Maybe create a VACToVarnishSession to hold pointers to VAC and
-# Varnish connections?
-#
-# I think I can't use promises, I don't know in what order they will
-# request and respond - or do I? Humm - maybe I do anyway - results
-# from jobs are to be sent to a RESTful url, so nothing on the CLI.
-#
-# Ok, try with promises first, if it doesn't work, then I will just
-# have to use callbacks instead. Either have Agent keep track of which
-# VarnishClientConnection belongs to which VACClient, or make a new
-# VACVarnishSession or something.
-
 
 sub handle_vac_request {
     my ($self, $vac) = @_;
-
-    # Varnish produces a "welcome message" upon successful
-    # connect. Need to read and handle that when a new varnish
-    # connection is created.
 
     my $varnish = $self->varnish_client_connection();
     $varnish->put($vac->data());
@@ -172,54 +149,6 @@ sub handle_vac_request {
     $self->debug("handle_vac_request, response: ", Dumper($response));
     
     $vac->put($response->{data});
-    # Read initial varnish response
-    # die "Bad varnish server initial response" unless(defined $response && ($response->{status} == CLIS_OK || $response->{status} == CLIS_AUTH));
-
-    # send_response($client, $response);
-
-    # my $s = IO::Select->new();
-    # $s->add($client);
-    # $s->add($varnish);
-
-    # # Our connection context
-    # my $c = {
-    #     client => $client,
-    #     varnish => $varnish,
-    #     authenticated => 0,
-    # };
-
-    # eval {
-    #   LOOP: while(1) {
-    #       my @ready = $s->can_read;
-    #       for my $fh (@ready) {
-    #           if($fh == $client) {
-    #     	  if($fh->eof()) {
-    #     	      INFO "Client closed connection";
-    #     	      last LOOP;
-    #     	  }
-    #     	  my $command = receive_command_2($client, $c->{authenticated});
-    #     	  if($command->{line} gt '') {
-    #     	      handle_command($c, $command);
-    #     	  }
-    #           } elsif($fh == $varnish) {
-    #     	  if($fh->eof()) {
-    #     	      INFO "Varnish closed connection";
-    #     	      last LOOP;
-    #     	  }
-    #     	  # Out of sync varnish message
-    #     	  DEBUG "Varnish unexpectedly ready for reading";
-    #     	  my $response = receive_response($varnish);
-    #     	  send_response($client, $response);
-    #           }
-    #       }
-    #   }
-    # };
-    # die $@ if $@ && $@ !~ /^sigexit/;
-
-    # INFO "Client handler down connection";
-    # close $varnish;
-    # close $client;
-    # exit 0;
 }
 
 

@@ -6,6 +6,8 @@ use Data::Dumper;
 
 use Reflex::Connector;
 
+use Varnish::VACAgent::VACCommand;
+
 extends 'Varnish::VACAgent::AcceptedIncomingConnection';
 
 with 'Varnish::VACAgent::Role::Configurable';
@@ -28,6 +30,12 @@ has data => (
     isa => 'Str',
 );
 
+has authenticated => (
+    is => 'rw',
+    isa => 'Bool',
+    default => 0,
+);
+
 
 
 sub on_data {
@@ -46,6 +54,14 @@ sub on_closed {
     
     $self->debug("VAC client terminated the connection!");
     $self->_trigger_termination();
+}
+
+
+
+sub put {
+    my ($self, $data) = @_;
+    
+    $self->stream->put($data);
 }
 
 
@@ -72,10 +88,24 @@ sub terminate {
 
 
 
-sub put {
-    my ($self, $data) = @_;
+sub get_request {
+    my $self = shift;
     
-    $self->stream->put($data);
+    $self->debug("authenticated: ", $self->authenticated());
+    
+    my $command = Varnish::VACAgent::VACCommand->new($self->data());
+    $self->debug("VACClient::get_request, result: ", Dumper($result));
+    
+    return $command;
+}
+
+
+
+# Removes (possible an \r) and a \n
+sub chomp_crlf {
+    my $line = shift;
+    $line =~ s/\r?\n$//;
+    return $line;
 }
 
 
@@ -85,6 +115,7 @@ sub DEMOLISH {
    
     $self->debug("VACClient demolished");
 }
+
 
 
 

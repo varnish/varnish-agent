@@ -121,48 +121,15 @@ sub handle_vac_request {
     my $vac = $self->vac();
     my $varnish = $self->varnish();
     my $response;
-
-    $varnish->put($vac->data());
+    
+    my $request = $vac->get_request();
+    $varnish->put($request);
     
     $response = $varnish->response();
     $self->debug("handle_vac_request, status: ", $response->status(),
                  ", message: ", $response->message());
 
     $vac->put($response->message());
-}
-
-
-
-sub receive_command_2 {
-    my ($self, $socket, $authenticated) = @_;
-    
-    $self->debug("authenticated=$authenticated");
-
-    # my $line = <$socket>;
-    # $self->debug("C->A: ".pretty_line($line));
-    # $line = chomp_line($line);
-    # my $tmp = $line;
-    # my $heredoc = undef;
-    # if ($authenticated && $tmp =~ s/ << (\w+)$//) {
-    #     # Here-document
-    #     my $token = $1;
-    #     my $part;
-    #     while (1) {
-    #         $part = <$socket>
-    #     	or die $!;
-    #         last if (chomp_line($part) eq $token);
-    #         $heredoc .= $part;
-    #     }
-    # }
-    # my @args = unquote($tmp);
-    # my $command = shift @args;
-    # push @args, $heredoc if defined $heredoc;
-    # return {
-    #     line => $line,
-    #     command => $command,
-    #     args => \@args,
-    #     heredoc => defined $heredoc ? 1 : 0,
-    # };
 }
 
 

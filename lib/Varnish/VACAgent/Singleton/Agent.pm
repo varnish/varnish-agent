@@ -164,20 +164,6 @@ sub terminate_proxy_session {
 
 
 
-# sub handle_vac_request {
-#     my ($self, $vac) = @_;
-
-#     my $varnish = $self->varnish_client_connection();
-#     $varnish->put($vac->data());
-    
-#     my $response = $varnish->response();
-#     $self->debug("handle_vac_request, response: ", Dumper($response));
-    
-#     $vac->put($response->{data});
-# }
-
-
-
 sub handle_command {
     my ($self, $command) = @_;
     

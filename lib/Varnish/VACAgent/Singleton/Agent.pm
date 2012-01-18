@@ -80,25 +80,30 @@ sub _build_client_listener {
     return Varnish::VACAgent::ClientListener->new();
 }
 
+
+
 sub _build_master_listener {
     my $self = shift;
     $self->debug("_build_master_listener");
     return Varnish::VACAgent::MasterListener->new();
 }
 
+
+
 sub _build_handled_commands {
     my $self = shift;
-    $self->debug("_build_handled_commands entered");
+    
     my $map = {
         'auth'       => sub { $self->command_auth(@_) },
         'vcl.use'    => sub { $self->command_vcl_use(@_) },
         'param.set'  => sub { $self->command_param_set(@_) },
         'agent.stat' => sub { $self->command_agent_stat(@_) },
     };
-    $self->debug("_build_handled_commands returning");
     
     return $map;
 }
+
+
 
 sub _build_ticker {
     my $self = shift;
@@ -109,6 +114,8 @@ sub _build_ticker {
         on_tick     => sub { $self->debug("Agent: tick\n") },
     );
 }
+
+
 
 sub BUILD {
     my $self = shift;

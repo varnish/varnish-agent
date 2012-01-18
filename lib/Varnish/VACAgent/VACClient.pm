@@ -93,8 +93,9 @@ sub get_request {
     
     $self->debug("authenticated: ", $self->authenticated());
     
-    my $command = Varnish::VACAgent::VACCommand->new($self->data());
-    $self->debug("VACClient::get_request, result: ", Dumper($result));
+    my $command = Varnish::VACAgent::VACCommand->new(data => $self->data(),
+                                                     authenticated => 0);
+    $self->debug("VACClient::get_request: ", Dumper($command));
     
     return $command;
 }

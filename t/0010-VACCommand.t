@@ -9,32 +9,32 @@ use lib qw(./lib ../lib);
 use Test::More;
 use Data::Dumper;
 
-plan tests => 31;
+plan tests => 34;
 
-my $cmdline_1 = "help\r\n";
-my $cmdline_2 = "help some_command\r\n";
-my $cmdline_3 = "vcl.load some_name << LIMITER\r\n" .
-    "first vcl line\r\n" .
-    "second vcl line\r\n" .
-    "LIMITER\r\n";
 my $cmd;
 
 use_ok('Varnish::VACAgent::VACCommand');
 
 
 
-# Test methods
+# Test _peek_line, data(). Need to test this before object
+# construction, because those will fail if _peek_line fails.
 
-$cmd = Varnish::VACAgent::VACCommand->new(data          => $cmdline_1,
+my $cmdline_3 = "vcl.load some_name << DELIMITER\r\n" .
+    "first vcl line\r\n" .
+    "second vcl line\r\n" .
+    "DELIMITER\r\n";
+$cmd = Varnish::VACAgent::VACCommand->new(data          => "help\r\n",
                                           authenticated => 1);
+
 $cmd->data($cmdline_3); # Set up new data for testing
-my ($line, $rest) = $cmd->peek_line();
+my ($line, $rest) = $cmd->_peek_line();
 is($cmd->pretty_line($cmd->data()), $cmd->pretty_line($cmdline_3),
    "data correct for peek_line test");
-is($cmd->pretty_line($line), '"vcl.load some_name << LIMITER"',
+is($cmd->pretty_line($line), '"vcl.load some_name << DELIMITER"',
    "peek_line, line");
 is($cmd->pretty_line($$rest),
-   $cmd->pretty_line("first vcl line\r\nsecond vcl line\r\nLIMITER\r\n"),
+   $cmd->pretty_line("first vcl line\r\nsecond vcl line\r\nDELIMITER\r\n"),
    "peek_line, rest");
 
 
@@ -43,6 +43,7 @@ is($cmd->pretty_line($$rest),
 
 # cmdline_1
 
+my $cmdline_1 = "help\r\n";
 $cmd = Varnish::VACAgent::VACCommand->new(data          => $cmdline_1,
                                           authenticated => 1);
 
@@ -57,11 +58,13 @@ is($cmd->line(), "help", "line");
 is($cmd->heredoc(), undef, "heredoc");
 is($cmd->has_heredoc, 0, "has_heredoc");
 is_deeply($cmd->args, [], "args");
+is($cmd->to_string(), "help\n", "to_string()");
 
 
 
 # cmdline_2
 
+my $cmdline_2 = "help some_command\r\n";
 $cmd = Varnish::VACAgent::VACCommand->new(data          => $cmdline_2,
                                           authenticated => 0);
 
@@ -76,11 +79,16 @@ is($cmd->line(), "help some_command", "line");
 is($cmd->heredoc(), undef, "heredoc");
 is($cmd->has_heredoc, 0, "has_heredoc");
 is_deeply($cmd->args, ['some_command'], "args");
+is($cmd->to_string(), "help some_command\n", "to_string()");
 
 
 
 # cmdline_3
 
+# my $cmdline_3 = "vcl.load some_name << DELIMITER\r\n" .
+#     "first vcl line\r\n" .
+#     "second vcl line\r\n" .
+#     "DELIMITER\r\n";
 $cmd = Varnish::VACAgent::VACCommand->new(data          => $cmdline_3,
                                           authenticated => 1);
 
@@ -91,10 +99,14 @@ isa_ok($cmd, 'Varnish::VACAgent::VACCommand');
 is($cmd->data(), "", "data");
 is($cmd->authenticated(), 1, "authenticated");
 is($cmd->command(), "vcl.load", "command");
-is($cmd->line(), "vcl.load some_name << LIMITER", "line");
+is($cmd->line(), "vcl.load some_name << DELIMITER", "line");
 is($cmd->heredoc(), "first vcl line\nsecond vcl line\n", "heredoc");
-is($cmd->has_heredoc, 1, "has_heredoc");
+is($cmd->has_heredoc(), 1, "has_heredoc");
 is_deeply($cmd->args,
           ['some_name', "first vcl line\nsecond vcl line\n"],
           "args");
-
+is($cmd->to_string(),
+   "vcl.load some_name << DELIMITER\n" .
+   "first vcl line\n" .
+   "second vcl line\n" .
+   "DELIMITER\n", "to_string()");

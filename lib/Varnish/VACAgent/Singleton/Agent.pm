@@ -47,6 +47,17 @@ has varnish_client_connection => (
     default => undef,
 );
 
+has handled_commands => (
+    traits => ['Hash'],
+    is => 'ro',
+    isa => 'HashRef[CodeRef]',
+    builder => '_build_handled_commands',
+    handles => {
+        get_command_handler => 'get',
+        is_handled_command => 'exists',
+    },
+);
+
 has ticker => ( # Prove that we're non-blocking
     is => 'ro',
     isa => 'Reflex::Interval',
@@ -73,6 +84,20 @@ sub _build_master_listener {
     my $self = shift;
     $self->debug("_build_master_listener");
     return Varnish::VACAgent::MasterListener->new();
+}
+
+sub _build_handled_commands {
+    my $self = shift;
+    $self->debug("_build_handled_commands entered");
+    my $map = {
+        'auth'       => sub { $self->command_auth(@_) },
+        'vcl.use'    => sub { $self->command_vcl_use(@_) },
+        'param.set'  => sub { $self->command_param_set(@_) },
+        'agent.stat' => sub { $self->command_agent_stat(@_) },
+    };
+    $self->debug("_build_handled_commands returning");
+    
+    return $map;
 }
 
 sub _build_ticker {
@@ -153,6 +178,15 @@ sub handle_vac_request {
 
 
 
+sub handle_command {
+    my ($self, $command) = @_;
+    
+    my $handler = $self->get_command_handler($command->command());
+    $handler->();
+}
+
+
+
 sub _next_session_id {
     my $self = shift;
 
@@ -173,6 +207,38 @@ sub _connect_to_varnish {
     $self->varnish_client_connection($varnish);
     
     return $varnish;
+}
+
+
+
+sub command_auth {
+    my $self = shift;
+
+    $self->debug("command_auth running");
+}
+
+
+
+sub command_vcl_use {
+    my $self = shift;
+
+    $self->debug("command_vcl_use running");
+}
+
+
+
+sub command_param_set {
+    my $self = shift;
+
+    $self->debug("command_param_set running");
+}
+
+
+
+sub command_agent_stat {
+    my $self = shift;
+
+    $self->debug("command_agent_stat running");
 }
 
 

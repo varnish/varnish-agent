@@ -34,16 +34,22 @@ has line => (
     default => "",
 );
 
+has has_heredoc => (
+    is => 'rw',
+    isa => 'Bool',
+    default => 0,
+);
+
 has heredoc => (
     is => 'rw',
     isa => 'Maybe[Str]',
     default => undef,
 );
 
-has has_heredoc => (
+has heredoc_delimiter => (
     is => 'rw',
-    isa => 'Bool',
-    default => 0,
+    isa => 'Maybe[Str]',
+    default => undef,
 );
 
 has args => (
@@ -57,24 +63,22 @@ has args => (
 sub BUILD {
     my $self = shift;
 
-    my $line= $self->pop_line();
+    my $line= $self->_pop_line();
     $self->line($line);
 
-    my $heredoc = $self->get_heredoc();
-    if (defined $heredoc) {
-        $self->heredoc($heredoc);
-        $self->has_heredoc(1);
-    }
-    
-    $line = $self->strip_heredoc_markers($line);
-    my @args = unquote($line);
+    $self->_extract_heredoc();
+
+    $line = $self->_strip_heredoc_markers($line);
+    my @args = _unquote($line);
     my $command = shift @args;
     $self->command($command);
     
+    my $heredoc = $self->heredoc();
     push @args, $heredoc if defined $heredoc;
     $self->args(\@args);
 
-    $self->debug("VACCommand::BUILD, result: ", $self->pretty_line(Dumper($self)));
+    $self->debug("VACCommand::BUILD, result: ",
+                 $self->pretty_line(Dumper($self)));
 }    
 
 
@@ -82,13 +86,13 @@ sub BUILD {
 # Split $self->data into first line and rest, return first line and
 # remove the returned line from $self->data.
 
-sub pop_line {
+sub _pop_line {
     my $self = shift;
 
-    my ($first_line, $rest) = $self->peek_line();
+    my ($first_line, $rest) = $self->_peek_line();
     
-    print("pop_line, \$rest: \"", $rest, "\"\n");
-    print("pop_line, \$\$rest: \"", $$rest, "\"\n");
+    print("_pop_line, \$rest: \"", $rest, "\"\n");
+    print("_pop_line, \$\$rest: \"", $$rest, "\"\n");
     $self->data($$rest);
     
     return $first_line;
@@ -99,7 +103,7 @@ sub pop_line {
 # Split $self->data into first line and rest, return first line and
 # ref to rest. Do not change $self->data.
 
-sub peek_line {
+sub _peek_line {
     my $self = shift;
 
     my $data = $self->data();
@@ -114,7 +118,8 @@ sub peek_line {
                   /msx) {
         $first_line = $1;
         $rest = $2;
-        $self->debug("peek_line, first_line: ", $self->pretty_line($first_line),
+        $self->debug("_peek_line, first_line: ",
+                     $self->pretty_line($first_line),
                      ", rest: ", $self->pretty_line($rest));
     } else {
         die "CLI protocol error: Syntax error";
@@ -132,31 +137,38 @@ sub peek_line {
 # more vcl_content
 # LIMITER
 
-sub get_heredoc {
+sub _extract_heredoc {
     my $self = shift;
     
     my $heredoc;
+    my $token;
     my $first_line = $self->line(); # First line already loaded into self
+
     if ($self->authenticated() && $first_line =~ s/\s+<<\s+(\w+)\s*$//) {
 	# Here-document
-	my $token = $1;
+	$token = $1;
 	my $line;
 	while (1) {
             $self->debug("data: ", $self->pretty_line($self->data()));
-	    $line = $self->pop_line or die "CLI protocol error: Syntax error" .
+	    $line = $self->_pop_line or die "CLI protocol error: Syntax error" .
                 ", end of heredoc not found";
-            $self->debug("get_heredoc, popped line: ",
+            $self->debug("_get_heredoc, popped line: ",
                          $self->pretty_line($line));
 	    last if $line eq $token;
 	    $heredoc .= "$line\n";
 	}
     }
-    return $heredoc;
+    
+    if (defined $heredoc) {
+        $self->heredoc($heredoc);
+        $self->has_heredoc(1);
+        $self->heredoc_delimiter($token);
+    }
 }
 
 
 
-sub strip_heredoc_markers {
+sub _strip_heredoc_markers {
     my ($self, $line) = @_;
 
     $line =~ s/\s+<<\s+(\w+)\s*$//;
@@ -179,7 +191,7 @@ sub pretty_line {
 
 
 
-sub unquote {
+sub _unquote {
     use bytes;
 
     my $s = shift;
@@ -216,6 +228,26 @@ sub unquote {
     return @r;
 }
 
+
+
+sub to_string {
+    my ($self, $varnish) = @_;
+    
+    my $string;
+    
+    if (my $line = $self->line()) {
+	$self->debug("A->V: " . $line);
+        $string .= $line . "\n";
+	if ($self->has_heredoc()) {
+	    $string .= $self->heredoc();
+	    $string .= $self->heredoc_delimiter() . "\n";
+	}
+    } else {
+        die "Unexpected outcome in to_string: No \$self->line";
+    }
+    
+    return $string;
+}
 
 
 1;

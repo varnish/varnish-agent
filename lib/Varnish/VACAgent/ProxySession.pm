@@ -118,12 +118,20 @@ sub terminate {
 sub handle_vac_request {
     my $self = shift;
 
+    my $agent = Varnish::VACAgent::Singleton::Agent->instance();
     my $vac = $self->vac();
     my $varnish = $self->varnish();
     my $response;
     
     my $request = $vac->get_request();
-    $varnish->put($request);
+    
+    
+    if ($agent->is_handled_command($request->command())) {
+        $agent->handle_command($request, $self->id());
+    } else {
+        $varnish->put($request->to_string());
+    }
+    # $varnish->put($request);
     
     $response = $varnish->response();
     $self->debug("handle_vac_request, status: ", $response->status(),

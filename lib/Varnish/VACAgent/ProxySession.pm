@@ -131,7 +131,6 @@ sub handle_vac_request {
     } else {
         $varnish->put($request->to_string());
     }
-    # $varnish->put($request);
     
     $response = $varnish->response();
     $self->debug("handle_vac_request, status: ", $response->status(),

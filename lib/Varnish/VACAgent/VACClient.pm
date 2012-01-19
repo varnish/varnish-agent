@@ -3,6 +3,7 @@ package Varnish::VACAgent::VACClient;
 use Moose;
 use Socket;
 use Data::Dumper;
+use Carp qw(cluck);
 
 use Reflex::Connector;
 
@@ -12,6 +13,7 @@ extends 'Varnish::VACAgent::AcceptedIncomingConnection';
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
+with 'Varnish::VACAgent::Role::TextManipulation';
 
 
 
@@ -41,9 +43,10 @@ has authenticated => (
 sub on_data {
     my ($self, $event) = @_;
 
-    $self->info("VACClient received data: ", $event->octets());
-    
-    $self->data($event->octets());
+    my $data = $event->octets();
+
+    $self->info("C->A: ", $data);
+    $self->data($data);
     $self->proxy_session->handle_vac_request();
 }
 
@@ -61,6 +64,7 @@ sub on_closed {
 sub put {
     my ($self, $data) = @_;
     
+    $self->debug("A->C: ", $self->make_printable($data));
     $self->stream->put($data);
 }
 
@@ -93,9 +97,9 @@ sub get_request {
     
     $self->debug("authenticated: ", $self->authenticated());
     
+    my $auth = $self->proxy_session->authenticated();
     my $command = Varnish::VACAgent::VACCommand->new(data => $self->data(),
-                                                     authenticated => 0);
-    $self->debug("VACClient::get_request: ", Dumper($command));
+                                                     authenticated => $auth);
     
     return $command;
 }

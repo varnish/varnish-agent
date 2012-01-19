@@ -7,6 +7,7 @@ use Data::Dumper;
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
+with 'Varnish::VACAgent::Role::TextManipulation';
 
 
 
@@ -78,7 +79,7 @@ sub BUILD {
     $self->args(\@args);
 
     $self->debug("VACCommand::BUILD, result: ",
-                 $self->pretty_line(Dumper($self)));
+                 $self->make_printable(Dumper($self)));
 }    
 
 
@@ -119,8 +120,8 @@ sub _peek_line {
         $first_line = $1;
         $rest = $2;
         $self->debug("_peek_line, first_line: ",
-                     $self->pretty_line($first_line),
-                     ", rest: ", $self->pretty_line($rest));
+                     $self->make_printable($first_line),
+                     ", rest: ", $self->make_printable($rest));
     } else {
         die "CLI protocol error: Syntax error";
     }
@@ -149,11 +150,11 @@ sub _extract_heredoc {
 	$token = $1;
 	my $line;
 	while (1) {
-            $self->debug("data: ", $self->pretty_line($self->data()));
+            $self->debug("data: ", $self->make_printable($self->data()));
 	    $line = $self->_pop_line or die "CLI protocol error: Syntax error" .
                 ", end of heredoc not found";
             $self->debug("_get_heredoc, popped line: ",
-                         $self->pretty_line($line));
+                         $self->make_printable($line));
 	    last if $line eq $token;
 	    $heredoc .= "$line\n";
 	}
@@ -174,19 +175,6 @@ sub _strip_heredoc_markers {
     $line =~ s/\s+<<\s+(\w+)\s*$//;
 
     return $line;
-}
-
-
-
-# Escape special chars in a string
-# TODO: Remove duplication (see VarnishResponse)
-sub pretty_line {
-    my ($self, $line) = @_;
-    
-    if (length($line) >= 256) {
-	$line = substr($line, 0, 253)."...";
-    }
-    return Data::Dumper->new([$line])->Useqq(1)->Terse(1)->Indent(0)->Dump;
 }
 
 

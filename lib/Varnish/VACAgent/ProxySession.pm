@@ -33,10 +33,17 @@ has id => (
     required => 1,
 );
 
+has authenticated => (
+    is => 'rw',
+    isa => 'Bool',
+    default => 0,
+);
+
 
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
+with 'Varnish::VACAgent::Role::TextManipulation';
 
 
 
@@ -55,13 +62,13 @@ sub _build_varnish {
     my $varnish = $self->_connect_to_varnish();
     my $response = $varnish->response();
 
-    if (! ($response->is_ok() || $response->is_auth())) {
+    if (! ($response->status_is_ok() || $response->status_is_auth())) {
         die "Bad varnish server initial response: ", $response->status(),
             " ", $response->message();
     }
     
-    $self->debug("_build_varnish, response: ", Dumper($response->message()));
-    $self->vac->put($response->message());
+    $self->debug("_build_varnish, response:\n", $response->to_string());
+    $self->vac->put($response->to_string());
     
     return $varnish;
 }
@@ -125,18 +132,17 @@ sub handle_vac_request {
     
     my $request = $vac->get_request();
     
-    
+    my $response;
     if ($agent->is_handled_command($request->command())) {
-        $agent->handle_command($request, $self->id());
+        $response = $agent->handle_command($request, $self->id());
     } else {
         $varnish->put($request->to_string());
+        $response = $varnish->response();
     }
     
-    $response = $varnish->response();
-    $self->debug("handle_vac_request, status: ", $response->status(),
-                 ", message: ", $response->message());
-
-    $vac->put($response->message());
+    $self->debug("\$varnish->response(): ",
+                 $self->make_printable($response->to_string()));
+    $vac->put($response->to_string());
 }
 
 

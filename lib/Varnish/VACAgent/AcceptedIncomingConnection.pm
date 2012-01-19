@@ -97,11 +97,7 @@ sub _build_remote_hostname {
 
 sub on_error {
     my ($self, $event) = @_;
-    warn(
-        $event->error_function(),
-        " error ", $event->error_number(),
-        ": ", $event->error_string(),
-    );
+    $self->error($event->formatted());
     $self->stopped();
 }
 

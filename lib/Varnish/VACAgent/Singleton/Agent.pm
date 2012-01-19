@@ -36,9 +36,15 @@ has master_listener => (
 );
 
 has proxy_sessions => (
+    traits => ['Hash'],
     is => 'ro',
     isa => 'HashRef[Varnish::VACAgent::ProxySession]',
     default => sub {{}},
+    handles => {
+        has_proxy_session    => 'exists',
+        get_proxy_session    => 'get',
+        delete_proxy_session => 'delete',
+    },
 );
 
 has varnish_client_connection => (
@@ -94,10 +100,10 @@ sub _build_handled_commands {
     my $self = shift;
     
     my $map = {
-        'auth'       => sub { $self->command_auth(@_) },
-        'vcl.use'    => sub { $self->command_vcl_use(@_) },
-        'param.set'  => sub { $self->command_param_set(@_) },
-        'agent.stat' => sub { $self->command_agent_stat(@_) },
+        'auth'       => sub { return $self->command_auth(@_) },
+        'vcl.use'    => sub { return $self->command_vcl_use(@_) },
+        'param.set'  => sub { return $self->command_param_set(@_) },
+        'agent.stat' => sub { return $self->command_agent_stat(@_) },
     };
     
     return $map;
@@ -164,18 +170,18 @@ sub terminate_proxy_session {
     my ($self, $proxy_id) = @_;
     
     $self->debug("Terminating proxy session $proxy_id");
-    my $session = $self->proxy_sessions()->{$proxy_id};
+    my $session = $self->get_proxy_session($proxy_id);
     $session->terminate();
-    $self->proxy_sessions()->{$proxy_id} = undef;
+    $self->delete_proxy_session($proxy_id);
 }
 
 
 
 sub handle_command {
-    my ($self, $command) = @_;
+    my ($self, $command, $session_id) = @_;
     
     my $handler = $self->get_command_handler($command->command());
-    $handler->();
+    return $handler->($command, $session_id);
 }
 
 
@@ -205,33 +211,52 @@ sub _connect_to_varnish {
 
 
 sub command_auth {
-    my $self = shift;
-
+    my ($self, $command, $session_id) = @_;
+    
     $self->debug("command_auth running");
+    my $session = $self->get_proxy_session($session_id);
+    my $varnish = $session->varnish();
+    my $vac     = $session->vac();
+    
+    
+    $varnish->put($command->to_string());
+    
+    my $response = $varnish->response();
+    if ($response->status_is_ok()) {
+        $session->authenticated(1);
+    }
+    
+    return $response;
 }
 
 
 
 sub command_vcl_use {
-    my $self = shift;
+    my ($self, $command, $session_id) = @_;
 
     $self->debug("command_vcl_use running");
+    my $response;
+    return $response;
 }
 
 
 
 sub command_param_set {
-    my $self = shift;
+    my ($self, $command, $session_id) = @_;
 
     $self->debug("command_param_set running");
+    my $response;
+    return $response;
 }
 
 
 
 sub command_agent_stat {
-    my $self = shift;
+    my ($self, $command, $session_id) = @_;
 
     $self->debug("command_agent_stat running");
+    my $response;
+    return $response;
 }
 
 

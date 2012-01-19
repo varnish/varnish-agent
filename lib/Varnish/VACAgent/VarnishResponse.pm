@@ -7,7 +7,8 @@ use Data::Dumper;
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
-
+with 'Varnish::VACAgent::Role::TextManipulation'
+;
 
 
 has length => (
@@ -40,6 +41,7 @@ has CLI_STATUS_OK      => (is => 'ro', init_arg => undef, default => 200);
 has CLI_STATUS_CANT    => (is => 'ro', init_arg => undef, default => 300);
 has CLI_STATUS_COMMS   => (is => 'ro', init_arg => undef, default => 400);
 has CLI_STATUS_CLOSE   => (is => 'ro', init_arg => undef, default => 500);
+has CLI_HEADERLINE_LEN => (is => 'ro', init_arg => undef, default =>  13);
 
 
 
@@ -54,25 +56,33 @@ sub BUILD {
         die "CLI communication error. Expected to read $length bytes, " .
             "but read $received_length: $!";
     }
-    $self->debug("V->A: " . $self->pretty_line($message));
+    $self->debug("V->A: " . $self->make_printable($self->to_string()));
 }    
 
 
 
-# Escape special chars in a string
-sub pretty_line {
-    my ($self, $line) = @_;
+sub to_string {
+    my $self = shift;
+
+    my $header_line = $self->_format_header_line();
     
-    $self->debug("pretty_line, line: ", $line);
-    if (length($line) >= 256) {
-	$line = substr($line, 0, 253)."...";
-    }
-    return Data::Dumper->new([$line])->Useqq(1)->Terse(1)->Indent(0)->Dump;
+    return "$header_line\n" . $self->message() . "\n";
 }
 
 
 
-sub is_ok {
+sub _format_header_line {
+    my $self = shift;
+    
+    my $line = $self->status() . " " . $self->length();
+    $line .= " " x ($self->CLI_HEADERLINE_LEN() - 1 - length($line));
+
+    return $line;
+}
+
+
+
+sub status_is_ok {
     my $self = shift;
     
     return $self->status() == $self->CLI_STATUS_OK();
@@ -80,7 +90,7 @@ sub is_ok {
 
 
 
-sub is_auth {
+sub status_is_auth {
     my $self = shift;
 
     return $self->status() == $self->CLI_STATUS_AUTH();

@@ -11,6 +11,7 @@ extends 'Reflex::Connector';
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
+with 'Varnish::VACAgent::Role::TextManipulation';
 
 
 
@@ -49,9 +50,8 @@ sub on_closed {
 sub put {
     my ($self, $data) = @_;
     
-    $self->debug("in put()");
+    $self->debug("A->V: ", $self->make_printable($data));
     $self->stream->put($data);
-    $self->debug("in put() after stream->put()");
 }
 
 
@@ -76,10 +76,7 @@ sub terminate {
 sub response {
     my $self = shift;
     
-    $self->debug("in response()");
     my $response_event = $self->stream->next();
-    $self->debug("in response() after next()");
-    $self->debug("response_event: ", Dumper($response_event));
     
     if (ref $response_event eq 'Reflex::Event::EOF' ||
             $response_event->_name eq 'stopped') {
@@ -97,6 +94,7 @@ sub receive_response {
     my ($self, $event) = @_;
     
     my $data = $event->octets();
+    
     chomp($data);
     $data =~ m/^(\d+)\s+(\d+)\s*$(?:\n)?(^.*)/ms
 	or die "CLI protocol error: Syntax error";

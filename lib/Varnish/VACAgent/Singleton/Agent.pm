@@ -115,7 +115,7 @@ sub _build_ticker {
     my $self = shift;
     
     return Reflex::Interval->new(
-        interval    => rand(5) + 1,
+        interval    => 3,
         auto_repeat => 1,
         on_tick     => sub { $self->debug("Agent: tick\n") },
     );

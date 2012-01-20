@@ -56,7 +56,6 @@ sub BUILD {
         die "CLI communication error. Expected to read $length bytes, " .
             "but read $received_length: $!";
     }
-    $self->debug("V->A: " . $self->make_printable($self->to_string()));
 }    
 
 

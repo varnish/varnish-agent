@@ -2,6 +2,7 @@ package Varnish::VACAgent::VACCommand;
 
 use Moose;
 use Data::Dumper;
+use Carp qw(croak cluck);
 
 
 
@@ -123,7 +124,9 @@ sub _peek_line {
                      $self->make_printable($first_line),
                      ", rest: ", $self->make_printable($rest));
     } else {
-        die "CLI protocol error: Syntax error";
+        cluck();
+        die "CLI protocol error: Syntax error, data: ",
+            $self->make_printable($data);
     }
     
     return ($first_line, \$rest);
@@ -231,7 +234,7 @@ sub to_string {
 	    $string .= $self->heredoc_delimiter() . "\n";
 	}
     } else {
-        die "Unexpected outcome in to_string: No \$self->line";
+        die "Unexpected state in to_string: No \$self->line";
     }
     
     return $string;

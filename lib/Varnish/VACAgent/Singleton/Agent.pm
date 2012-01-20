@@ -232,11 +232,79 @@ sub command_auth {
 
 
 sub command_vcl_use {
-    my ($self, $command, $session_id) = @_;
+    my ($self, $vcl_use_request, $session_id) = @_;
+    
+    my $session       = $self->get_proxy_session($session_id);
+    my $authenticated = $session->authenticated();
+    my $varnish       = $session->varnish();
+    my $vac           = $session->vac();
+    my $final_response;
+    
+    my $vcl_name = $vcl_use_request->args->[0];
+    $self->debug("command_vcl_use called vcl_name = \"$vcl_name\"");
 
-    $self->debug("command_vcl_use running");
-    my $response;
-    return $response;
+    if(! $vcl_name) {
+	# Bad command line, let varnish create a helpful error message
+        return $self->run_varnish_command($varnish, $vcl_use_request);
+    }
+
+    $self->debug("vcl_name = $vcl_name");
+    my $vcl_show_response =
+        $self->_vcl_show($session, $vcl_name, $authenticated);
+    $self->debug("V->A: ", $vcl_show_response->to_string());
+        
+    # Send the command to use this config to varnish
+    my $vcl_use_response =
+        $self->run_varnish_command($varnish, $vcl_use_request);
+        
+    if ($vcl_show_response->status_is_ok() &&
+            $vcl_use_response->status_is_ok()) {
+        # If the response from varnish to vcl.use is CLIS_OK
+        # store the config as the last one
+
+        # TODO: what if the vcl.show returns not CLIS_OK, but vcl.use does?
+
+        $self->_write_vcl_file($vcl_show_response->message());
+        $self->info("New varnish configuration stored");
+    }
+    
+    return $vcl_use_response;
+}
+
+
+
+# Get the VCL with the given name from varnish, return VarnishResponse
+
+sub _vcl_show {
+    my ($self, $session, $vcl_name, $auth) = @_;
+    
+    my ($vac, $varnish) = ($session->vac(), $session->varnish());
+    my $request = $vac->get_request_from_string("vcl.show $vcl_name", $auth);
+
+    return $self->run_varnish_command($varnish, $request);
+}
+
+
+
+# Execute given VACCommand on varnish, return VarnishResponse object
+
+sub run_varnish_command {
+    my ($self, $varnish, $command) = @_;
+
+    $varnish->put($command->to_string());
+    return $varnish->response();
+}
+
+
+
+sub _write_vcl_file {
+    my ($self, $vcl) = @_;
+    
+    my $filename = $self->_config()->vcl_file();
+    open(my $file, ">$filename")
+        or die "Failed to open output file $filename: " . $!;
+    print $file $vcl;
+    close $file;
 }
 
 

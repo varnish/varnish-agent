@@ -128,8 +128,6 @@ sub handle_vac_request {
     my $agent = Varnish::VACAgent::Singleton::Agent->instance();
     my $vac = $self->vac();
     my $varnish = $self->varnish();
-    my $response;
-    
     my $request = $vac->get_request();
     
     my $response;

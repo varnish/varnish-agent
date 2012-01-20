@@ -29,12 +29,12 @@ $cmd = Varnish::VACAgent::VACCommand->new(data          => "help\r\n",
 
 $cmd->data($cmdline_3); # Set up new data for testing
 my ($line, $rest) = $cmd->_peek_line();
-is($cmd->pretty_line($cmd->data()), $cmd->pretty_line($cmdline_3),
-   "data correct for peek_line test");
-is($cmd->pretty_line($line), '"vcl.load some_name << DELIMITER"',
+is($cmd->make_printable($cmd->data()), $cmd->make_printable($cmdline_3),
+   "cmd->data() unchanged after peek_line test");
+is($cmd->make_printable($line), '"vcl.load some_name << DELIMITER"',
    "peek_line, line");
-is($cmd->pretty_line($$rest),
-   $cmd->pretty_line("first vcl line\r\nsecond vcl line\r\nDELIMITER\r\n"),
+is($cmd->make_printable($$rest),
+   $cmd->make_printable("first vcl line\r\nsecond vcl line\r\nDELIMITER\r\n"),
    "peek_line, rest");
 
 

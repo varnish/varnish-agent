@@ -9,7 +9,7 @@ use lib qw(./lib ../lib);
 use Test::More;
 use Data::Dumper;
 
-plan tests => 4;
+plan tests => 19;
 
 
 
@@ -60,7 +60,12 @@ eval {
     $response = $method->($vcc, $test_event);
 };
 is($@, '', "Response object 1 generated ok");
-
+isa_ok($response, 'Varnish::VACAgent::VarnishResponse',
+       "Correct response class 1");
+is($response->length(), 0,   "Response length  correct 1");
+is($response->status(), 200, "Response status  correct 1");
+is($response->message(), "", "Response message correct 1");
+is(bytes::length($response->message()), 0, "Length really is correct 1");
 
 
 
@@ -76,6 +81,14 @@ is($@, '', "Response object 1 generated ok");
     };
     is($@, '', "Response object 2 generated ok");
 }
+isa_ok($response, 'Varnish::VACAgent::VarnishResponse',
+       "Correct response class 2");
+is($response->length(), 59,  "Response length  correct 2");
+is($response->status(), 107, "Response status  correct 2");
+is($response->message(),
+   "sirpararbezedpbixyzeytqofsirewqw\n\n" .
+   "Authentication required.\n", "Response message correct 2");
+is(bytes::length($response->message()), 59, "Length really is correct 2");
 
 
 
@@ -98,3 +111,17 @@ is($@, '', "Response object 1 generated ok");
     };
     is($@, '', "Response object 3 generated ok");
 }
+isa_ok($response, 'Varnish::VACAgent::VarnishResponse',
+       "Correct response class 3");
+is($response->length(), 245, "Response length  correct 3");
+is($response->status(), 200, "Response status  correct 3");
+is($response->message(),
+   "-----------------------------\n" .
+   "Varnish Cache CLI 1.0\n" .
+   "-----------------------------\n" .
+   "Linux,2.6.38-13-generic,x86_64,-smalloc,-smalloc,-hcritbit\n\n" .
+   "Type 'help' for command list.\n" .
+   "Type 'quit' to close CLI session.\n" .
+   "Type 'start' to launch worker process.\n",
+   "Response message correct 3");
+is(bytes::length($response->message()), 245, "Length really is correct 3");

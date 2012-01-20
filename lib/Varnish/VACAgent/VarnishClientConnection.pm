@@ -7,6 +7,8 @@ use Data::Dumper;
 use Reflex::Connector;
 use Reflex::Stream;
 
+use Varnish::VACAgent::VarnishResponse;
+
 extends 'Reflex::Connector';
 
 with 'Varnish::VACAgent::Role::Configurable';
@@ -95,9 +97,10 @@ sub receive_response {
     
     my $data = $event->octets();
     
+    $self->debug("V->A: " . $self->make_printable($data));
     chomp($data);
-    $data =~ m/^(\d+)\s+(\d+)\s*$(?:\n)?(^.*)/ms
-	or die "CLI protocol error: Syntax error";
+    $data =~ m/^(\d+)\s+(\d+)\s*$(?:\n)?(.*)/ms
+	or die "CLI protocol error: Syntax error, data: " . $self->make_printable($data);
     my ($status, $length, $message) = ($1, $2, $3);
     
     return Varnish::VACAgent::VarnishResponse->new(status  => $status,

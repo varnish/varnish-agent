@@ -273,7 +273,7 @@ sub command_vcl_use {
 
 
 
-# Get the VCL with the given name from varnish, return VarnishResponse
+# Get the VCL with the given name from varnish, return VarnishMessage
 
 sub _vcl_show {
     my ($self, $session, $vcl_name, $auth) = @_;
@@ -286,7 +286,7 @@ sub _vcl_show {
 
 
 
-# Execute given VACCommand on varnish, return VarnishResponse object
+# Execute given VACCommand on varnish, return VarnishMessage object
 
 sub run_varnish_command {
     my ($self, $varnish, $command) = @_;

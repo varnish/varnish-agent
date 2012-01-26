@@ -5,7 +5,6 @@ use 5.010;
 use Data::Dumper;
 
 use Varnish::VACAgent::VarnishClientConnection;
-use Varnish::VACAgent::VarnishResponse;
 
 
 

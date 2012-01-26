@@ -1,4 +1,4 @@
-package Varnish::VACAgent::VarnishResponse;
+package Varnish::VACAgent::VarnishMessage;
 
 use Moose;
 use Data::Dumper;
@@ -7,8 +7,8 @@ use Data::Dumper;
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
-with 'Varnish::VACAgent::Role::TextManipulation'
-;
+with 'Varnish::VACAgent::Role::TextManipulation';
+
 
 
 has length => (

@@ -7,13 +7,12 @@ use Data::Dumper;
 use Reflex::Connector;
 use Reflex::Stream;
 
-use Varnish::VACAgent::VarnishResponse;
-
 extends 'Reflex::Connector';
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
 with 'Varnish::VACAgent::Role::TextManipulation';
+with 'Varnish::VACAgent::Role::VarnishCLI';
 
 
 
@@ -86,29 +85,11 @@ sub response {
         die "EOF";
     }
     
-    my $response = $self->receive_response($response_event);
+    my $response = $self->receive_varnish_message($response_event->octets());
     return $response;
 }
 
 
-
-sub receive_response {
-    my ($self, $event) = @_;
-    
-    my $data = $event->octets();
-    
-    $self->debug("V->A: " . $self->make_printable($data));
-    chomp($data);
-    $data =~ m/^(\d+)\s+(\d+)\s*$(?:\n)?(.*)/ms
-	or die "CLI protocol error: Syntax error, data: " . $self->make_printable($data);
-    my ($status, $length, $message) = ($1, $2, $3);
-    
-    return Varnish::VACAgent::VarnishResponse->new(status  => $status,
-                                                   length  => $length,
-                                                   message => $message);
-}
-
-    
 
 sub DEMOLISH {
     my $self = shift; 

@@ -13,7 +13,7 @@ plan tests => 34;
 
 my $cmd;
 
-use_ok('Varnish::VACAgent::VACCommand');
+use_ok('Varnish::VACAgent::DataToVarnish');
 
 
 
@@ -24,8 +24,8 @@ my $cmdline_3 = "vcl.load some_name << DELIMITER\r\n" .
     "first vcl line\r\n" .
     "second vcl line\r\n" .
     "DELIMITER\r\n";
-$cmd = Varnish::VACAgent::VACCommand->new(data          => "help\r\n",
-                                          authenticated => 1);
+$cmd = Varnish::VACAgent::DataToVarnish->new(data          => "help\r\n",
+                                             authenticated => 1);
 
 $cmd->data($cmdline_3); # Set up new data for testing
 my ($line, $rest) = $cmd->_peek_line();
@@ -44,13 +44,13 @@ is($cmd->make_printable($$rest),
 # cmdline_1
 
 my $cmdline_1 = "help\r\n";
-$cmd = Varnish::VACAgent::VACCommand->new(data          => $cmdline_1,
-                                          authenticated => 1);
+$cmd = Varnish::VACAgent::DataToVarnish->new(data          => $cmdline_1,
+                                             authenticated => 1);
 
 # say("cmd: ", Dumper($cmd));
 
 isnt($cmd, undef, "non-null command line 1");
-isa_ok($cmd, 'Varnish::VACAgent::VACCommand');
+isa_ok($cmd, 'Varnish::VACAgent::DataToVarnish');
 is($cmd->data(), "", "data");
 is($cmd->authenticated(), 1, "authenticated");
 is($cmd->command(), "help", "command");
@@ -65,13 +65,13 @@ is($cmd->to_string(), "help\n", "to_string()");
 # cmdline_2
 
 my $cmdline_2 = "help some_command\r\n";
-$cmd = Varnish::VACAgent::VACCommand->new(data          => $cmdline_2,
-                                          authenticated => 0);
+$cmd = Varnish::VACAgent::DataToVarnish->new(data          => $cmdline_2,
+                                             authenticated => 0);
 
 # say("cmd: ", Dumper($cmd));
 
 isnt($cmd, undef, "non-null command line 2");
-isa_ok($cmd, 'Varnish::VACAgent::VACCommand');
+isa_ok($cmd, 'Varnish::VACAgent::DataToVarnish');
 is($cmd->data(), "", "data");
 is($cmd->authenticated(), 0, "authenticated");
 is($cmd->command(), "help", "command");
@@ -89,13 +89,13 @@ is($cmd->to_string(), "help some_command\n", "to_string()");
 #     "first vcl line\r\n" .
 #     "second vcl line\r\n" .
 #     "DELIMITER\r\n";
-$cmd = Varnish::VACAgent::VACCommand->new(data          => $cmdline_3,
-                                          authenticated => 1);
+$cmd = Varnish::VACAgent::DataToVarnish->new(data          => $cmdline_3,
+                                             authenticated => 1);
 
 # say("cmd: ", Dumper($cmd));
 
 isnt($cmd, undef, "non-null command line 3");
-isa_ok($cmd, 'Varnish::VACAgent::VACCommand');
+isa_ok($cmd, 'Varnish::VACAgent::DataToVarnish');
 is($cmd->data(), "", "data");
 is($cmd->authenticated(), 1, "authenticated");
 is($cmd->command(), "vcl.load", "command");

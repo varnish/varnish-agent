@@ -12,11 +12,45 @@ with 'Varnish::VACAgent::Role::Logging';
 sub on_data {
     my ($self, $event) = @_;
 
-    $self->info("VarnishInstance received data");
-
     my $response =
-        $self->agent->handle_varnish_master_request($event->octets());
-    $self->put($response);
+        $self->agent->handle_varnish_master_request($self, $event->octets());
+    
+    if (defined $response && $response) {
+        $self->put($response);
+    }
+}
+
+
+
+sub on_closed {
+    my ($self, $event) = @_;
+    
+    $self->info("Master shutting down");
+}
+
+
+
+# TODO: Duplication from VarnishClientConnection! This indicates that
+# something is amiss with the connection classes. I think there should
+# be a common Connection superclass that should contain
+# response(). However, as VarnishClientConnection extends
+# Reflex::Connector, that is currently difficult. Maybe
+# VarnishClientConnection should consume Reflex::Role::Connecting
+# instead.
+
+sub response {
+    my $self = shift;
+    
+    my $response_event = $self->stream->next();
+    
+    if (ref $response_event eq 'Reflex::Event::EOF' ||
+            $response_event->_name eq 'stopped') {
+        $self->debug("Varnish master connection has been closed by remote");
+        die "Varnish Master EOF";
+    }
+    
+    my $response = $self->receive_varnish_message($response_event->octets());
+    return $response;
 }
 
 

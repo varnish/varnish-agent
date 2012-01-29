@@ -4,6 +4,7 @@ use 5.010;
 
 use MooseX::Singleton;
 use Data::Dumper;
+use File::Slurp;
 
 use Reflex::Interval;
 
@@ -14,6 +15,8 @@ use Varnish::VACAgent::ProxySession;
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
+with 'Varnish::VACAgent::Role::TextManipulation';
+with 'Varnish::VACAgent::Role::VarnishCLI';
 
 
 
@@ -64,6 +67,12 @@ has handled_commands => (
     },
 );
 
+has secret => (
+    is => 'ro',
+    isa => 'Str',
+    lazy_build => 1,
+);
+
 has ticker => ( # Prove that we're non-blocking
     is => 'ro',
     isa => 'Reflex::Interval',
@@ -111,6 +120,24 @@ sub _build_handled_commands {
 
 
 
+sub _build_secret {
+    my $self = shift;
+
+    my $secret = '';
+    
+    if ((my $secret_file = $self->_config->secret_file()) gt '') {
+        die "Can't read secret file" unless -r $secret_file;
+        
+        $secret = read_file($secret_file);
+
+        die "No secret in secret file" unless $secret gt '';
+    }
+    
+    return $secret;
+}
+
+
+
 sub _build_ticker {
     my $self = shift;
     
@@ -131,19 +158,123 @@ sub BUILD {
 
 
 
+# Called from MasterListener when varnish connects to the master port
+
 sub new_varnish_instance {
-    my $self = shift;
+    my ($self, $varnish_master) = @_;
 
     $self->info("Newly started varnish instance detected");
 }
 
 
 
-sub handle_varnish_master_request {
-    my ($self, $data) = @_;
+# Called from VarnishMasterConnection when varnish sends data on an
+# established master connection
 
-    $self->info("Received data: ", $data, " from varnish");
-    return $data;
+sub handle_varnish_master_request {
+    my ($self, $varnish_master, $request_data) = @_;
+
+    $self->_new_varnish_check_initial_auth($varnish_master, $request_data);
+    $self->_new_varnish_push_params($varnish_master);
+    $self->_new_varnish_push_config($varnish_master);
+}
+
+
+
+# Die unless authentication is ok
+
+sub _new_varnish_check_initial_auth {
+    my ($self, $varnish, $data) = @_;
+    
+    $self->debug("_new_varnish_check_initial_auth running");
+    my $response = $self->decode_data_from_varnish_master($data);
+    
+    if ($response->status_is_auth()) { # Varnish requires authentication
+        my $secret = $self->secret() or die "No secret configured";
+        
+        my $auth_cmd = $self->format_auth_command($response->challenge(),
+                                                  $self->secret());
+        $varnish->put($auth_cmd->to_string());
+        my $auth_response = $varnish->response();
+        
+        if (! $auth_response->status_is_ok()) {
+            die "Bad varnish authentication response";
+        }
+    }
+    $self->debug("_new_varnish_check_initial_auth returning");
+}
+
+
+
+sub _new_varnish_push_params {
+    my ($self, $varnish) = @_;
+    
+    $self->debug("_new_varnish_push_params running");
+    # # Push params
+    # if(-r $config{ParamsFile}) {
+    #     INFO "Pushing parameters to varnish";
+    #     my $params = read_params($config{ParamsFile});
+
+    #     for my $param (@$params) {
+    #         send_command_2(
+    #     	$varnish, 
+    #     	{ command => "param.set",
+    #     	  args => [ $param->[0], $param->[1] ]
+    #     	} );
+    #         my $response = receive_response($varnish);
+    #         if($response->{status} == CLIS_OK) {
+    #     	INFO "Parameter $param->[0]=$param->[1] set successfully";
+    #         } else {
+    #     	WARN "Failed to set $param->[0]=$param->[1]";
+    #         }
+    #     }
+    # }
+}
+
+
+
+sub _new_varnish_push_config {
+    my ($self, $varnish) = @_;
+    
+    $self->debug("_new_varnish_push_config running");
+
+    # # Push config
+    # if(-r $config{VCLFile}) {
+    #     eval {
+    #         INFO "Pushing current vcl to varnish";
+    #         my $data = read_file($config{VCLFile});
+	    
+    #         # Create a name for the VCL
+    #         # We are using the sha1 of the content of the file
+    #         my $vcl_name = sha1_hex($data);
+	    
+    #         # Load the VCL
+    #         send_command_2(
+    #     	$varnish,
+    #     	{ command => "vcl.inline",
+    #     	  args => [ $vcl_name, $data ],
+    #     	  heredoc => $authenticated,
+    #     	} );
+    #         my $response = receive_response($varnish);
+    #         DEBUG "vcl.inline status=$response->{status}";
+    #         die "Failed to load VCL" unless $$response{status} == CLIS_OK;
+	    
+    #         # Use the VCL
+    #         send_command($varnish, "vcl.use $vcl_name");
+    #         $response = receive_response($varnish);
+    #         DEBUG "vcl.use status=$response->{status}";
+    #         die "Failed to use the VCL" unless $$response{status} == CLIS_OK;
+	    
+    #         # Start varnish
+    #         send_command($varnish, "start");
+    #         $response = receive_response($varnish);
+    #         DEBUG "start status=$response->{status}";
+    #         die "Failed to start varnish" unless $$response{status} == CLIS_OK;
+    #     };
+    #     if ($@) {
+    #         WARN "Agent autoload VCL failed: $@";
+    #     }
+    # }
 }
 
 
@@ -241,9 +372,9 @@ sub command_vcl_use {
     my $final_response;
     
     my $vcl_name = $vcl_use_request->args->[0];
-    $self->debug("command_vcl_use called vcl_name = \"$vcl_name\"");
+    $self->debug("command_vcl_use called, vcl_name = \"$vcl_name\"");
 
-    if(! $vcl_name) {
+    if (! $vcl_name) {
 	# Bad command line, let varnish create a helpful error message
         return $self->run_varnish_command($varnish, $vcl_use_request);
     }
@@ -273,7 +404,7 @@ sub command_vcl_use {
 
 
 
-# Get the VCL with the given name from varnish, return VarnishMessage
+# Get the VCL with the given name from varnish, return DataFromVarnish
 
 sub _vcl_show {
     my ($self, $session, $vcl_name, $auth) = @_;
@@ -286,7 +417,8 @@ sub _vcl_show {
 
 
 
-# Execute given VACCommand on varnish, return VarnishMessage object
+# Execute given command of type datatovarnish on varnish, return
+# DataFromVarnish object
 
 sub run_varnish_command {
     my ($self, $varnish, $command) = @_;
@@ -312,7 +444,7 @@ sub _write_vcl_file {
 sub command_param_set {
     my ($self, $command, $session_id) = @_;
 
-    $self->debug("command_param_set running");
+    $self->debug("command_param_set running, TODO: logic needed");
     my $response;
     return $response;
 }
@@ -322,7 +454,7 @@ sub command_param_set {
 sub command_agent_stat {
     my ($self, $command, $session_id) = @_;
 
-    $self->debug("command_agent_stat running");
+    $self->debug("command_agent_stat running, TODO: logic needed");
     my $response;
     return $response;
 }

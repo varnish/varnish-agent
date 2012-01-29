@@ -7,13 +7,14 @@ use Carp qw(cluck);
 
 use Reflex::Connector;
 
-use Varnish::VACAgent::VACCommand;
+use Varnish::VACAgent::DataToVarnish;
 
 extends 'Varnish::VACAgent::AcceptedIncomingConnection';
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
 with 'Varnish::VACAgent::Role::TextManipulation';
+with 'Varnish::VACAgent::Role::VarnishCLI';
 
 
 
@@ -92,30 +93,17 @@ sub terminate {
 
 
 
-# get_request returns a newly created VACCommand based on the data and
-# authenticated attributes. This reads, but does not change internal
-# state.
+# get_request returns a newly created DataToVarnish object based on
+# the data and authenticated attributes. This reads, but does not
+# change internal state.
 
 sub get_request {
     my $self = shift;
     
-    $self->debug("authenticated: ", $self->authenticated());
+    my $auth = $self->proxy_session->authenticated();
+    $self->debug("authenticated: ", $auth);
     
-    return $self->get_request_from_string($self->data(),
-                                          $self->proxy_session->authenticated());
-}
-
-
-
-# get_request_from_string returns a newly created VACCommand based on
-# the supplied command string and boolean authenticated value. Note
-# that this does not read or write internal state.
-
-sub get_request_from_string {
-    my ($self, $command, $auth) = @_;
-    
-    return Varnish::VACAgent::VACCommand->new(data => $command . "\n",
-                                              authenticated => $auth);
+    return $self->get_request_from_string($self->data(), $auth);
 }
 
 

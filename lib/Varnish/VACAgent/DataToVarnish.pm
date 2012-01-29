@@ -1,4 +1,4 @@
-package Varnish::VACAgent::VACCommand;
+package Varnish::VACAgent::DataToVarnish;
 
 use Moose;
 use Data::Dumper;
@@ -79,7 +79,7 @@ sub BUILD {
     push @args, $heredoc if defined $heredoc;
     $self->args(\@args);
 
-    $self->debug("VACCommand::BUILD, result: ",
+    $self->debug("DataToVarnish::BUILD, result: ",
                  $self->make_printable(Dumper($self)));
 }    
 
@@ -239,6 +239,7 @@ sub to_string {
     
     return $string;
 }
+
 
 
 1;

@@ -1,4 +1,4 @@
-package Varnish::VACAgent::VarnishMessage;
+package Varnish::VACAgent::DataFromVarnish;
 
 use Moose;
 use Data::Dumper;
@@ -29,6 +29,12 @@ has message => (
     required => 1,
 );
 
+has challenge => (
+    is => 'ro',
+    isa => 'Str',
+    lazy_build => 1,
+);
+
 # Constants
 has CLI_STATUS_SYNTAX  => (is => 'ro', init_arg => undef, default => 100);
 has CLI_STATUS_UNKNOWN => (is => 'ro', init_arg => undef, default => 101);
@@ -56,7 +62,24 @@ sub BUILD {
         die "CLI communication error. Expected to read $length bytes, " .
             "but read $received_length: $!";
     }
-}    
+}
+
+
+
+sub _build_challenge {
+    my $self = shift;
+
+    if (! $self->status_is_auth()) {
+        return "";
+    }
+    
+    my $challenge = "";
+    if ($self->message() =~ m/(\w+)/) {
+        $challenge = $1;
+    }
+    
+    return $challenge;
+}
 
 
 

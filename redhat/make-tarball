@@ -15,8 +15,8 @@ if [ -z "$TOPDIR" ]; then
     exit 255
 fi
 
-if [ ! -d "src/CPAN" ]; then
-    echo "Please run this script from the base of the cloned directory. (Looking for src/CPAN/ subdirectory)"
+if [ ! -d ".git" ]; then
+    echo "Please run this script from the base of the cloned directory. (Looking for .git/ subdirectory)"
     exit 255
 fi
 

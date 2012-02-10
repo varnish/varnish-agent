@@ -174,34 +174,48 @@ sub new_varnish_instance {
 sub handle_varnish_master_request {
     my ($self, $varnish_master, $request_data) = @_;
 
-    $self->_new_varnish_check_initial_auth($varnish_master, $request_data);
-    $self->_new_varnish_push_params($varnish_master);
-    $self->_new_varnish_push_config($varnish_master);
+    if (! $varnish_master->authenticated()) {
+        $self->_new_varnish_authenticate($varnish_master, $request_data);
+    }
+    if ($varnish_master->authenticated()) {
+        $self->_new_varnish_push_params($varnish_master);
+        $self->_new_varnish_push_config($varnish_master);
+    }
 }
 
 
 
 # Die unless authentication is ok
 
-sub _new_varnish_check_initial_auth {
+sub _new_varnish_authenticate {
     my ($self, $varnish, $data) = @_;
     
-    $self->debug("_new_varnish_check_initial_auth running");
+    $self->debug("_new_varnish_authenticate running");
     my $response = $self->decode_data_from_varnish_master($data);
     
-    if ($response->status_is_auth()) { # Varnish requires authentication
+    # VarnishMasterConnection calls us again each time data arrives
+    # until the connection is properly authenticated.
+
+    if ($response->status_is_auth() &&
+            ! $varnish->authentication_in_progress()) {
+        $self->debug("Authentication first state"); 
         my $secret = $self->secret() or die "No secret configured";
         
         my $auth_cmd = $self->format_auth_command($response->challenge(),
                                                   $self->secret());
+        $varnish->authentication_in_progress(1);
         $varnish->put($auth_cmd->to_string());
-        my $auth_response = $varnish->response();
-        
-        if (! $auth_response->status_is_ok()) {
-            die "Bad varnish authentication response";
-        }
     }
-    $self->debug("_new_varnish_check_initial_auth returning");
+    elsif ($response->status_is_ok() &&
+               $varnish->authentication_in_progress()) {
+        $self->debug("Authentication second state"); 
+        $varnish->authentication_in_progress(0);
+        $varnish->authenticated(1);
+    }
+    else {
+        die("Authentication failed"); 
+    }
+    $self->debug("_new_varnish_authenticate returning");
 }
 
 

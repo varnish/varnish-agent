@@ -9,6 +9,20 @@ with 'Varnish::VACAgent::Role::Logging';
 
 
 
+has authentication_in_progress => (
+    is => 'rw',
+    isa => 'Bool',
+    default => 0,
+);
+
+has authenticated => (
+    is => 'rw',
+    isa => 'Bool',
+    default => 0,
+);
+    
+
+
 sub on_data {
     my ($self, $event) = @_;
 

@@ -3,28 +3,41 @@
 # Create a tar.gz dist of the vac agent, to be used by rpmbuild.
 # Slightly nasty, but that is rpm for you.
 #
-# Author: Lasse Karstensen <lkarsten@varnish-software.com>
+# Author: Lasse Karstensen <lasse@varnish-software.com>
 
 TMPDIR=/tmp/foo$$
 PREVDIR=$PWD
 
-TOPDIR=/tmp/varnish-agent-rpm/
+# is there a better way of doing this? 
+TOPDIR=$(rpm  --showrc | awk '$2 ~ /_topdir/ {print $3}')
+if [ -z "$TOPDIR" ]; then
+    echo "Can't figure out where to put tarball. SOURCES/ unknown"
+    exit 255
+fi
+
+if [ ! -d ".git" ]; then
+    echo "Please run this script from the base of the cloned directory. (Looking for .git/ subdirectory)"
+    exit 255
+fi
 
 # someone will hate me for this some day..
 #echo "%_topdir $TOPDIR" > ~/.rpmmacros
 
 if [ ! -d "$TOPDIR" ]; then
     mkdir -p $TOPDIR
-    for i in SOURCES SPECS BUILD RPMS RPMS/x64_64; do
-        mkdir -p $TOPDIR/$i
-    done
+#    for i in SOURCES SPECS BUILD RPMS RPMS/x86_64 RPMS/noarch RPMS/x86; do
+#        mkdir -p $TOPDIR/$i
+#    done
 fi
 
-mkdir -p $TMPDIR/varnish-agent-trunk/
-cp -r . $TMPDIR/varnish-agent-trunk/
+
+
+# making a copy to get the correct dir-structure in tarball:
+mkdir -p $TMPDIR/varnish-agent-master/
+cp -r . $TMPDIR/varnish-agent-master/
 
 cd $TMPDIR
-tar zcf $TOPDIR/SOURCES/varnish-agent-trunk.tar.gz varnish-agent-trunk
+tar zcf $TOPDIR/SOURCES/varnish-agent-master.tar.gz varnish-agent-master
 rm -rf $TMPDIR
 
 cd $PREVDIR

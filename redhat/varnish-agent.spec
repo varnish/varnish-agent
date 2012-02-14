@@ -7,7 +7,7 @@ Group: System Environment/Daemons
 # for now, lets build i386 and x86_64 explicitly.
 #BuildArch: noarch
 URL: http://github.com/varnish/varnish-agent/
-Source0: ./%{name}-trunk.tar.gz
+Source0: ./%{name}-master.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 Requires: varnish > 2.1
 # you need EPEL
@@ -28,7 +28,7 @@ Requires(preun): initscripts
 Varnish Agent software that runs on all caches managed by Varnish Administration Console (VAC).
 
 %prep
-%setup -n varnish-agent-trunk
+%setup -n varnish-agent-master
 
 %build 
 #echo "No build step necessary"

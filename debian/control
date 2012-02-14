@@ -7,6 +7,6 @@ Standards-Version: 3.8.1
 
 Package: varnish-agent
 Architecture: all
-Depends: varnish, libproc-daemon-perl, libfile-pid-perl, liblog-dispatch-perl, libio-socket-ssl-perl, liblog-log4perl-perl, libdigest-sha-perl, libconfig-simple-perl, ${perl:Depends}, ${misc:Depends}
+Depends: libproc-daemon-perl, libfile-pid-perl, liblog-dispatch-perl, libio-socket-ssl-perl, liblog-log4perl-perl, libdigest-sha-perl, libconfig-simple-perl, ${perl:Depends}, ${misc:Depends}
 Description: Agent used for collecting statistics for the Varnish Admin Console
  

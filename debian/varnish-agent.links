@@ -1,1 +1,1 @@
-/usr/share/varnish-agent/agent.pl /usr/sbin/varnish-agent
+/usr/share/varnish-agent/varnish-agent /usr/sbin/varnish-agent

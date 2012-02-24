@@ -424,7 +424,7 @@ sub _vcl_show {
     my ($self, $session, $vcl_name, $auth) = @_;
     
     my ($vac, $varnish) = ($session->vac(), $session->varnish());
-    my $request = $vac->get_request_from_string("vcl.show $vcl_name", $auth);
+    my $request = $self->format_data_to_varnish("vcl.show $vcl_name", $auth);
 
     return $self->run_varnish_command($varnish, $request);
 }

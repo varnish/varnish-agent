@@ -6,6 +6,8 @@ extends 'Varnish::VACAgent::AcceptedIncomingConnection';
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
+with 'Varnish::VACAgent::Role::TextManipulation';
+with 'Varnish::VACAgent::Role::VarnishCLI';
 
 
 
@@ -63,7 +65,7 @@ sub response {
         die "Varnish Master EOF";
     }
     
-    my $response = $self->receive_varnish_message($response_event->octets());
+    my $response = $self->_decode_data_from_varnish($response_event->octets());
     return $response;
 }
 

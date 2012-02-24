@@ -103,7 +103,7 @@ sub get_request {
     my $auth = $self->proxy_session->authenticated();
     $self->debug("authenticated: ", $auth);
     
-    return $self->get_request_from_string($self->data(), $auth);
+    return $self->format_data_to_varnish($self->data(), $auth);
 }
 
 

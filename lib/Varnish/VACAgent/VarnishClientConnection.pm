@@ -85,7 +85,7 @@ sub response {
         die "EOF";
     }
     
-    my $response = $self->receive_varnish_message($response_event->octets());
+    my $response = $self->_decode_data_from_varnish($response_event->octets());
     return $response;
 }
 

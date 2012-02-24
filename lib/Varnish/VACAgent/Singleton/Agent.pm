@@ -142,7 +142,7 @@ sub _build_ticker {
     my $self = shift;
     
     return Reflex::Interval->new(
-        interval    => 3,
+        interval    => 15,
         auto_repeat => 1,
         on_tick     => sub { $self->debug("Agent: tick\n") },
     );
@@ -168,12 +168,14 @@ sub new_varnish_instance {
 
 
 
-# Called from VarnishMasterConnection when varnish sends data on an
-# established master connection
+# Called from VarnishMasterConnection the first time varnish sends
+# data on an established master connection
 
 sub handle_varnish_master_request {
     my ($self, $varnish_master, $request_data) = @_;
-
+    
+    $self->debug("handle_varnish_master_request running");
+    
     if (! $varnish_master->authenticated()) {
         $self->_new_varnish_authenticate($varnish_master, $request_data);
     }
@@ -185,36 +187,31 @@ sub handle_varnish_master_request {
 
 
 
-# Die unless authentication is ok
-
 sub _new_varnish_authenticate {
     my ($self, $varnish, $data) = @_;
     
     $self->debug("_new_varnish_authenticate running");
     my $response = $self->decode_data_from_varnish_master($data);
     
-    # VarnishMasterConnection calls us again each time data arrives
-    # until the connection is properly authenticated.
-
-    if ($response->status_is_auth() &&
-            ! $varnish->authentication_in_progress()) {
-        $self->debug("Authentication first state"); 
-        my $secret = $self->secret() or die "No secret configured";
-        
-        my $auth_cmd = $self->format_auth_command($response->challenge(),
-                                                  $self->secret());
-        $varnish->authentication_in_progress(1);
-        $varnish->put($auth_cmd->to_string());
-    }
-    elsif ($response->status_is_ok() &&
-               $varnish->authentication_in_progress()) {
+    die("Expected authentication request from varnish master, " .
+            "got " . $response->status() . " instead")
+        unless $response->status_is_auth();
+    
+    $self->debug("Authentication first state"); 
+    
+    my $secret = $self->secret() or die "No secret configured";
+    my $auth_cmd = $self->format_auth_command($response->challenge(),
+                                              $self->secret());
+    $varnish->put($auth_cmd->to_string());
+    $response = $varnish->response();
+    
+    if ($response->status_is_ok()) {
         $self->debug("Authentication second state"); 
-        $varnish->authentication_in_progress(0);
         $varnish->authenticated(1);
+    } else {
+        die("Authentication failed");
     }
-    else {
-        die("Authentication failed"); 
-    }
+    
     $self->debug("_new_varnish_authenticate returning");
 }
 
@@ -224,10 +221,11 @@ sub _new_varnish_push_params {
     my ($self, $varnish) = @_;
     
     $self->debug("_new_varnish_push_params running");
-    # # Push params
-    # if(-r $config{ParamsFile}) {
-    #     INFO "Pushing parameters to varnish";
-    #     my $params = read_params($config{ParamsFile});
+
+    return unless -r $self->_config->params_file();
+
+    my $params = $self->read_params();
+    $self->debug("Pushing parameters to varnish") if $params;
 
     #     for my $param (@$params) {
     #         send_command_2(
@@ -247,48 +245,76 @@ sub _new_varnish_push_params {
 
 
 
+sub read_params {
+    my $self = shift;
+
+    my $param_file = $self->_config->params_file();
+    my $data = [];
+    
+    if (! $param_file || ! -r $param_file) {
+        $self->error("Parameter file not configured!")
+            unless $param_file;
+        $self->error("Unable to read parameter file $param_file!")
+            unless -r $param_file;
+        return;
+    }
+
+    open(my $fh, "$param_file") or die "Can't read params file $param_file: $!";
+    while (my $line = <$fh>) {
+	chomp $line;
+	if ($line =~ /^(\S+?)=(.*)/) {
+	    push(@$data, [$1, $2]);
+	}
+    }
+    close $fh;
+
+    return $data;
+}
+
+
+
 sub _new_varnish_push_config {
     my ($self, $varnish) = @_;
-    
-    $self->debug("_new_varnish_push_config running");
 
-    # # Push config
-    # if(-r $config{VCLFile}) {
-    #     eval {
-    #         INFO "Pushing current vcl to varnish";
-    #         my $data = read_file($config{VCLFile});
+    $self->debug("_new_varnish_push_config running");
+    my $vcl_file = $self->_config->vcl_file();
+    
+    return unless $vcl_file;
+    if (! -r $vcl_file) {
+        $self->error("Unable to read parameter file $vcl_file!")
+            unless -r $vcl_file;
+        return;
+    }
+
+    eval {
+        $self->info("Pushing current vcl to varnish");
+        my $vcl_contents = read_file($vcl_file);
+        $self->debug("VCL contents: ", Dumper($vcl_contents));
 	    
-    #         # Create a name for the VCL
-    #         # We are using the sha1 of the content of the file
-    #         my $vcl_name = sha1_hex($data);
-	    
-    #         # Load the VCL
-    #         send_command_2(
-    #     	$varnish,
-    #     	{ command => "vcl.inline",
-    #     	  args => [ $vcl_name, $data ],
-    #     	  heredoc => $authenticated,
-    #     	} );
-    #         my $response = receive_response($varnish);
-    #         DEBUG "vcl.inline status=$response->{status}";
-    #         die "Failed to load VCL" unless $$response{status} == CLIS_OK;
-	    
-    #         # Use the VCL
-    #         send_command($varnish, "vcl.use $vcl_name");
-    #         $response = receive_response($varnish);
-    #         DEBUG "vcl.use status=$response->{status}";
-    #         die "Failed to use the VCL" unless $$response{status} == CLIS_OK;
-	    
-    #         # Start varnish
-    #         send_command($varnish, "start");
-    #         $response = receive_response($varnish);
-    #         DEBUG "start status=$response->{status}";
-    #         die "Failed to start varnish" unless $$response{status} == CLIS_OK;
-    #     };
-    #     if ($@) {
-    #         WARN "Agent autoload VCL failed: $@";
-    #     }
-    # }
+        my $vcl_name = $self->make_vcl_name($vcl_contents);
+        my $command = Varnish::VACAgent::DataToVarnish->new(
+            command       => "vcl.inline",
+            args          => [ $vcl_name ],
+            heredoc       => $vcl_contents,
+            authenticated => $varnish->authenticated(),
+        );
+        
+        my $response = $self->run_varnish_command($varnish, $command);
+        $self->debug("vcl.inline response: ", $response->to_string());
+        die("Failed to load VCL") unless $response->status_is_ok();
+
+        $response =
+            $self->run_varnish_command_string($varnish, "vcl.use $vcl_name");
+        $self->debug("vcl.use response: ", $response->to_string());
+        die("Failed to use the VCL") unless $response->status_is_ok();
+        
+        $response = $self->run_varnish_command_string($varnish, "start");
+        $self->debug("start response: ", $response->to_string());
+        die("Failed to start varnish") unless $response->status_is_ok();
+    };
+    if ($@) {
+        $self->warn("Agent autoload VCL failed: $@");
+    }
 }
 
 
@@ -431,7 +457,23 @@ sub _vcl_show {
 
 
 
-# Execute given command of type datatovarnish on varnish, return
+# Execute given string as a varnish command, return DataFromVarnish
+# object. Works only for commands on the form "command arg_1 arg_2 ... arg_n"
+
+sub run_varnish_command_string {
+    my ($self, $varnish, $cmdline) = @_;
+    
+    my ($command, @args) = split('\s+', $cmdline);
+    my $cmd = Varnish::VACAgent::DataToVarnish->new(
+        command       => $command,
+        args          => \@args,
+        authenticated => $varnish->authenticated());
+    return $self->run_varnish_command($varnish, $cmd);
+}
+
+
+
+# Execute given command of type DataToVarnish on varnish, return
 # DataFromVarnish object
 
 sub run_varnish_command {

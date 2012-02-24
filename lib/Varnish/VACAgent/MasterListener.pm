@@ -8,10 +8,9 @@ use Reflex::Collection;
 
 use Varnish::VACAgent::VarnishMasterConnection;
 
-
 extends 'Varnish::VACAgent::SocketListener';
 
-has_many varnish_instances => ( handles => { remember_client => "remember" } );
+
 
 with 'Varnish::VACAgent::Role::Configurable';
 with 'Varnish::VACAgent::Role::Logging';
@@ -40,13 +39,12 @@ sub _build_port {
 
 sub on_accept {
     my ($self, $event) = @_;
-    # $self->debug("Event type: ", ref $event);
+    $self->debug("Master connection event: ", Dumper($event));
     
     my $agent = Varnish::VACAgent::Singleton::Agent->instance();
-    my $varnish =
-        Varnish::VACAgent::VarnishMasterConnection->new(connection_event =>
-                                                            $event);
-    
+    my $varnish = Varnish::VACAgent::VarnishMasterConnection->new(
+        connection_event => $event
+    );
     $self->remember_varnish($varnish);
     $self->_count_client();
     $self->info(sprintf("M%5d", $self->client_counter));

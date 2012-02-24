@@ -12,16 +12,15 @@ with 'Varnish::VACAgent::Role::TextManipulation';
 
 
 
-has data => (
-    is => 'rw',
-    isa => 'Str',
-    required => 1,
-);
-
 has authenticated => (
     is => 'ro',
     isa => 'Str',
     required => 1,
+);
+
+has data => (
+    is => 'rw',
+    isa => 'Str',
 );
 
 has command => (
@@ -34,12 +33,6 @@ has line => (
     is => 'rw',
     isa => 'Str',
     default => "",
-);
-
-has has_heredoc => (
-    is => 'rw',
-    isa => 'Bool',
-    default => 0,
 );
 
 has heredoc => (
@@ -62,10 +55,28 @@ has args => (
 
 
 
+# This class can be built from a string containing a varnish command
+# or from individual parameters. If the data parameter is provided, we
+# will initialize all the other attributes by parsing it.
 sub BUILD {
     my $self = shift;
+    
+    if ($self->data()) {
+        $self->_build_from_data();
+    }
+    else { # No data, verify at least command has been supplied
+        die("Neither data nor command was given to DataToVarnish")
+            unless $self->command();
+        $self->_build_from_params();
+    }
+}    
 
-    my $line= $self->_pop_line();
+
+
+sub _build_from_data {
+    my $self = shift;
+    
+    my $line = $self->_pop_line();
     $self->line($line);
 
     $self->_extract_heredoc();
@@ -81,7 +92,37 @@ sub BUILD {
 
     $self->debug("DataToVarnish::BUILD, result: ",
                  $self->make_printable(Dumper($self)));
-}    
+}
+
+
+
+sub _build_from_params {
+    my $self = shift;
+    
+    my $heredoc = $self->heredoc();
+
+    if ($heredoc) { # Create heredoc
+        if (! $heredoc =~ /\n$/s) {
+            $heredoc .= "\n";
+            $self->heredoc($heredoc);
+        }
+
+        my $token;
+        do { # Create a token that does not occur in the heredoc
+            $token = randstring(8);
+        } while ($heredoc =~ /$token/);
+        
+        my $line = quote($self->command(), @{$self->args()}) . " << $token";
+        $self->line($line);
+        $self->debug("DataToVarnish, line: ", $line);
+        $self->heredoc_delimiter($token);
+        
+    } else {
+        my $line = quote($self->command(), @{$self->args()});
+        $self->debug("DataToVarnish, line: ", $line);
+        $self->line($line);
+    }
+}
 
 
 
@@ -93,8 +134,8 @@ sub _pop_line {
 
     my ($first_line, $rest) = $self->_peek_line();
     
-    print("_pop_line, \$rest: \"", $rest, "\"\n");
-    print("_pop_line, \$\$rest: \"", $$rest, "\"\n");
+    $self->debug("_pop_line, \$rest: \"", $rest, "\"\n");
+    $self->debug("_pop_line, \$\$rest: \"", $$rest, "\"\n");
     $self->data($$rest);
     
     return $first_line;
@@ -137,8 +178,8 @@ sub _peek_line {
 # Example here-doc:
 #
 # vcl.load some_vcl_name << LIMITER
-# vcl_content
-# more vcl_content
+# vcl content
+# more vcl content
 # LIMITER
 
 sub _extract_heredoc {
@@ -165,7 +206,6 @@ sub _extract_heredoc {
     
     if (defined $heredoc) {
         $self->heredoc($heredoc);
-        $self->has_heredoc(1);
         $self->heredoc_delimiter($token);
     }
 }
@@ -182,45 +222,6 @@ sub _strip_heredoc_markers {
 
 
 
-sub _unquote {
-    use bytes;
-
-    my $s = shift;
-    my @r;
-    while (length($s)) {
-	if ($s =~ s/^\s+//) {
-	    # Get rid of white space
-	    next;
-	} elsif ($s =~ s/^"(.*?)(?<!\\)"//) {
-	    # Quoted word
-	    push @r, $1;
-	    next;
-	} elsif ($s =~ /^"[^"]*$/) {
-	    # Unbalanced quotes
-	    die "Unbalanced quotes";
-	} elsif ($s =~ s/^([[:graph:]]+)//) {
-	    # Unquoted word
-	    push @r, $1;
-	    next;
-	}
-    }
-
-    for my $r (@r) {
-	$r =~ s/\\\\/!"magic#/g;
-	$r =~ s/\\n/\n/g;
-	$r =~ s/\\r/\r/g;
-	$r =~ s/\\t/\t/g;
-	$r =~ s/\\"/"/g;
-	$r =~ s/\\([0-7]{1,3})/chr(oct($1))/ge;
-	$r =~ s/\\x([0-9a-fA-F]{2})/chr(hex($1))/ge;
-	$r =~ s/!"magic#/\\/g;
-    }
-
-    return @r;
-}
-
-
-
 sub to_string {
     my ($self, $varnish) = @_;
     
@@ -229,8 +230,9 @@ sub to_string {
     if (my $line = $self->line()) {
 	$self->debug("A->V: " . $line);
         $string .= $line . "\n";
-	if ($self->has_heredoc()) {
-	    $string .= $self->heredoc();
+        my $heredoc = $self->heredoc();
+	if ($heredoc) {
+	    $string .= $heredoc;
 	    $string .= $self->heredoc_delimiter() . "\n";
 	}
     } else {

@@ -54,7 +54,7 @@ sub _decode_data_from_varnish {
 
 
 
-# get_request_from_string returns a newly created DataToVarnish object
+# format_data_to_varnish returns a newly created DataToVarnish object
 # based on the supplied command string and boolean authenticated
 # value.
 
@@ -72,6 +72,14 @@ sub format_auth_command {
     
     my $cmd = "auth " . sha256_hex("$challenge\n" . $secret . "$challenge\n");
     return $self->format_data_to_varnish($cmd, 0);
+}
+
+
+
+sub make_vcl_name {
+    my ($self, $data) = @_;
+    
+    return sha1_hex($data);
 }
 
 

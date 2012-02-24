@@ -32,7 +32,7 @@ varnish-agent
     --man				Print manual page
     -c <config-file>			Read configuration from file
     -F					Run in foreground
-    -d					Turn on debugging output
+    -d					Turn on debugging output, adds -F
     -P <pid-file>			Write PID to file
     -T <addr:port> (:6083)		CLI listen port
     -b <addr:port> (localhost:6082)	Varnish CLI port

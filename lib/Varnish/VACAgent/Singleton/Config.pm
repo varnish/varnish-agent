@@ -304,6 +304,14 @@ sub _build_varnish_port {
     return (split /:/, $_[0]->varnish_address_spec)[1];
 }
 
+sub BUILD {
+    my $self = shift;
+    
+    if ($self->debug()) {
+        $self->foreground(1);
+    }
+}
+
 
 
 

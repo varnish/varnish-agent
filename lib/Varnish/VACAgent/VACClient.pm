@@ -46,7 +46,7 @@ sub on_data {
 
     my $data = $event->octets();
 
-    $self->info("C->A: ", $data);
+    $self->debug("C->A: ", $data);
     $self->data($data);
     $self->proxy_session->handle_vac_request();
 }

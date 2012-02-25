@@ -31,6 +31,17 @@ has first_request_is_dispatched => (
     default => 0,
 );
     
+has initialized => (
+    traits => ['Bool'],
+    is => 'rw',
+    isa => 'Bool',
+    default => 0,
+    handles => {
+        initialization_done => 'set',
+        uninitialized       => 'not',
+    },
+);
+
 
 
 # After connecting, varnish will send some data. Get the first
@@ -46,10 +57,15 @@ sub on_data {
      # Dumper($event));
 
      if (! $self->first_request_is_dispatched) {
+         $self->debug("VarnishMasterConnection entering second state");
          $self->first_request_is_dispatched(1);
          $self->agent->handle_varnish_master_request($self, $event->octets());
-     } else {
+     } elsif ($self->uninitialized) {
+         $self->debug("VarnishMasterConnection in second state");
          $self->re_emit($event);
+     } else {
+         $self->info("Unexpected data from varnish master: ",
+                     $event->octets());
      }
  }
 

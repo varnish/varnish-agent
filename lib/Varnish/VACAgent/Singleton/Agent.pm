@@ -183,6 +183,7 @@ sub handle_varnish_master_request {
         $self->_new_varnish_push_params($varnish_master);
         $self->_new_varnish_push_config($varnish_master);
     }
+    $varnish_master->initialization_done();
 }
 
 

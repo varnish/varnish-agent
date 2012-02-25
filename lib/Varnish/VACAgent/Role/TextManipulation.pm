@@ -32,7 +32,6 @@ sub quote {
 
     my @r;
     for my $str (@_) {
-        print("quote: $str\n");
 	$str =~ s/\n/\\n/g;
 	$str =~ s/\r/\\r/g;
 	$str =~ s/\t/\\t/g;
@@ -40,9 +39,7 @@ sub quote {
 	$str =~ s/([[:^print:]])/sprintf("\\%03o", ord($1))/ge;
 	if ($str =~ /\s/) {
 	    $str = "\"$str\"";
-            print("quote: matches whitespace\n");
 	}
-        print("quote: $str\n");
 	push @r, $str;
     }
     return join(' ', @r);

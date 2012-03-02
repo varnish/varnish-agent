@@ -223,25 +223,28 @@ sub _new_varnish_push_params {
     
     $self->debug("_new_varnish_push_params running");
 
-    return unless -r $self->_config->params_file();
-
+    my $params_file = $self->_config->params_file();
+    if (! -r $params_file) {
+        $self->debug("Unable to read params file ", $params_file);
+        return;
+    }
+    
     my $params = $self->read_params();
-    $self->debug("Pushing parameters to varnish") if $params;
-
-    #     for my $param (@$params) {
-    #         send_command_2(
-    #     	$varnish, 
-    #     	{ command => "param.set",
-    #     	  args => [ $param->[0], $param->[1] ]
-    #     	} );
-    #         my $response = receive_response($varnish);
-    #         if($response->{status} == CLIS_OK) {
-    #     	INFO "Parameter $param->[0]=$param->[1] set successfully";
-    #         } else {
-    #     	WARN "Failed to set $param->[0]=$param->[1]";
-    #         }
-    #     }
-    # }
+    $self->debug("Pushing parameters from $params_file to varnish") if $params;
+    $self->debug("params: ", Dumper($params));
+    for my $p (@$params) {
+        my ($name, $value) = @$p;
+        my $response =
+            $self->run_varnish_command_string($varnish,
+                                              "param.set $name $value");
+        
+        $self->debug("param.set response: ", $response->to_string());
+        if ($response->status_is_ok()) {
+            $self->debug("Parameter $name = $value set successfully");
+        } else {
+            $self->warn("Failed to set parameter $name to $value");
+        }
+    }
 }
 
 
@@ -263,7 +266,7 @@ sub read_params {
     open(my $fh, "$param_file") or die "Can't read params file $param_file: $!";
     while (my $line = <$fh>) {
 	chomp $line;
-	if ($line =~ /^(\S+?)=(.*)/) {
+	if ($line =~ /^(\S+?)\s*=\s*(.*)/) {
 	    push(@$data, [$1, $2]);
 	}
     }
@@ -309,9 +312,9 @@ sub _new_varnish_push_config {
         $self->debug("vcl.use response: ", $response->to_string());
         die("Failed to use the VCL") unless $response->status_is_ok();
         
-        $response = $self->run_varnish_command_string($varnish, "start");
-        $self->debug("start response: ", $response->to_string());
-        die("Failed to start varnish") unless $response->status_is_ok();
+        # $response = $self->run_varnish_command_string($varnish, "start");
+        # $self->debug("start response: ", $response->to_string());
+        # die("Failed to start varnish") unless $response->status_is_ok();
     };
     if ($@) {
         $self->warn("Agent autoload VCL failed: $@");

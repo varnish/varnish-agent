@@ -3,6 +3,7 @@ package Varnish::VACAgent::VarnishMasterConnection;
 use Moose;
 
 use Data::Dumper;
+use Carp qw(cluck);
 
 extends 'Varnish::VACAgent::AcceptedIncomingConnection';
 
@@ -12,6 +13,12 @@ with 'Varnish::VACAgent::Role::TextManipulation';
 with 'Varnish::VACAgent::Role::VarnishCLI';
 
 
+
+has listener => (
+    is => 'rw',
+    isa => 'Varnish::VACAgent::MasterListener',
+    required => 1,
+);
 
 has authentication_in_progress => (
     is => 'rw',
@@ -75,6 +82,14 @@ sub on_closed {
     my ($self, $event) = @_;
     
     $self->info("Master shutting down");
+    
+    # NOTE: Don't try to close handles, ignore() etc. Just delete the
+    # object, Reflex::Role::Reflexive handles getting rid of all the
+    # references through DEMOLISH().
+    #
+    # Do not define DESTROY(). That interferes with DEMOLISH and will
+    # cause very strange behaviour, as I found out.
+    $self->listener->delete_varnish_instance($self);
 }
 
 

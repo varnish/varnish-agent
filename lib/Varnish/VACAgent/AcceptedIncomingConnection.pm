@@ -104,7 +104,7 @@ sub on_error {
 
 
 sub DEMOLISH {
-    $_[0]->debug("VACClient demolished as it should.");
+    $_[0]->debug(ref($_[0]) . " demolished as it should.");
 }
 
 

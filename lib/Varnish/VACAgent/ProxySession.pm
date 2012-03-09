@@ -136,7 +136,6 @@ sub handle_vac_request {
         $varnish->put($request->to_string());
         $response = $varnish->response();
     }
-    
     $self->debug("\$varnish->response(): ",
                  $self->make_printable($response->to_string()));
     $vac->put($response->to_string());

@@ -27,6 +27,12 @@ has stream => (
     isa => 'Reflex::Stream',
 );
 
+has authenticated => (
+    is => 'ro',
+    isa => 'Bool',
+    default => 0,
+);
+
 
 
 sub BUILD {

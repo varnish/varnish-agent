@@ -229,7 +229,7 @@ sub _new_varnish_push_params {
         return;
     }
     
-    my $params = $self->read_params();
+    my $params = $self->_read_params();
     $self->debug("Pushing parameters from $params_file to varnish") if $params;
     $self->debug("params: ", Dumper($params));
     for my $p (@$params) {
@@ -249,9 +249,9 @@ sub _new_varnish_push_params {
 
 
 
-sub read_params {
+sub _read_params {
     my $self = shift;
-
+    
     my $param_file = $self->_config->params_file();
     my $data = [];
     
@@ -273,6 +273,30 @@ sub read_params {
     close $fh;
 
     return $data;
+}
+
+
+
+sub _write_params {
+    my ($self, $params) = @_;
+
+    my $param_file = $self->_config->params_file();
+    open(my $fh, ">$param_file") or die "Can't open params file $param_file: $!";
+    
+    for my $param (@$params) {
+	print $fh "$param->[0] = $param->[1]\n";
+    }
+    
+    close $fh;
+}
+
+
+
+sub _add_param {
+    my ($self, $data, $param, $value) = @_;
+
+    @$data = grep { $_->[0] ne $param } @$data;
+    push @$data, [$param, $value];
 }
 
 
@@ -356,6 +380,7 @@ sub handle_command {
     my ($self, $command, $session_id) = @_;
     
     my $handler = $self->get_command_handler($command->command());
+
     return $handler->($command, $session_id);
 }
 
@@ -504,8 +529,34 @@ sub _write_vcl_file {
 sub command_param_set {
     my ($self, $command, $session_id) = @_;
 
-    $self->debug("command_param_set running, TODO: logic needed");
+    $self->debug("command_param_set called");
     my $response;
+
+    my $session       = $self->get_proxy_session($session_id);
+    my $authenticated = $session->authenticated();
+    my $varnish       = $session->varnish();
+    # my $vac           = $session->vac();
+    
+    my $params = $self->_read_params();
+    my ($param_name, $param_value) = @{$command->args()};
+    
+    if (! ($param_name && $param_value)) {
+        # No comprende. Let Varnish deal with it.
+        # $vac->put($self->run_varnish_command($varnish, $command)->to_string());
+        $response = $self->run_varnish_command($varnish, $command)->to_string();
+    } else {
+        my $command_string = "param.set $param_name $param_value";
+        $response = $self->run_varnish_command_string($varnish, $command_string);
+        
+        if ($response->status_is_ok()) {
+            $self->info("Parameter $param_name = $param_value ",
+                        "set successfully");
+            $self->_add_param($params, $param_name, $param_value);
+            $self->_write_params($params);
+        }
+        # $vac->put($response);
+    }
+    
     return $response;
 }
 

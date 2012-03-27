@@ -1,8 +1,8 @@
-varnish-agent (1.1ubuntu1) precise; urgency=low
+varnish-agent (1.1ubuntu2) unstable; urgency=low
 
   * Fix faulty link
 
- -- Lasse Karstensen <lkarsten@sierra.hyse.org>  Tue, 14 Feb 2012 13:49:54 +0100
+ -- Lasse Karstensen <lasse@varnish-software.com>  Tue, 14 Feb 2012 13:49:54 +0100
 
 varnish-agent (1.1) unstable; urgency=low
 

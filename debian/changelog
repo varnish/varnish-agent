@@ -1,3 +1,9 @@
+varnish-agent (1.13+nmu1) unstable; urgency=low
+
+  * libwww-perl was missing as dependency.
+
+ -- Lasse Karstensen <lkarsten@varnish-software.com>  Tue, 27 Mar 2012 14:12:59 +0200
+
 varnish-agent (1.13) unstable; urgency=low
 
   * Fix faulty link

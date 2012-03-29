@@ -6,7 +6,7 @@ use Data::Dumper;
 use Digest::SHA qw(sha256_hex sha1_hex);
 
 use Varnish::VACAgent::DataToVarnish;
-use Varnish::VACAgent::DataFromVarnish;
+use Varnish::VACAgent::DataToClient;
 
 requires 'make_printable';
 
@@ -47,9 +47,9 @@ sub _decode_data_from_varnish {
             $self->make_printable($data);
     my ($status, $length, $message) = ($1, $2, $3);
     
-    return Varnish::VACAgent::DataFromVarnish->new(status  => $status,
-                                                   length  => $length,
-                                                   message => $message);
+    return Varnish::VACAgent::DataToClient->new(status  => $status,
+                                                length  => $length,
+                                                message => $message);
 }
 
 

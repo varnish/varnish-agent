@@ -8,6 +8,7 @@ use File::Slurp;
 
 use Reflex::Interval;
 
+use Varnish::VACAgent::JobManager;
 use Varnish::VACAgent::ClientListener;
 use Varnish::VACAgent::MasterListener;
 use Varnish::VACAgent::VarnishClientConnection;
@@ -20,11 +21,11 @@ with 'Varnish::VACAgent::Role::VarnishCLI';
 
 
 
-# has _job_manager => (
-#     isa => 'Varnish::VACAgent::JobManager',
-#     is => 'ro',
-#     builder => '_build__job_manager',
-#);
+has _job_manager => (
+     isa => 'Varnish::VACAgent::JobManager',
+     is => 'ro',
+     builder => '_build__job_manager',
+);
 
 has client_listener => (
     is         => 'rw',
@@ -89,6 +90,14 @@ has _session_id => (
 
 
 
+sub _build__job_manager {
+    my $self = shift;
+
+    return Varnish::VACAgent::JobManager->new();
+}
+
+
+
 sub _build_client_listener {
     my $self = shift;
     $self->debug("_build_client_listener");
@@ -109,10 +118,12 @@ sub _build_handled_commands {
     my $self = shift;
     
     my $map = {
-        'auth'       => sub { return $self->command_auth(@_) },
-        'vcl.use'    => sub { return $self->command_vcl_use(@_) },
-        'param.set'  => sub { return $self->command_param_set(@_) },
-        'agent.stat' => sub { return $self->command_agent_stat(@_) },
+        'auth'            => sub { return $self->command_auth(@_) },
+        'vcl.use'         => sub { return $self->command_vcl_use(@_) },
+        'param.set'       => sub { return $self->command_param_set(@_) },
+        'agent.job'       => sub { return $self->command_agent_job(@_) },
+        'agent.job_list'  => sub { return $self->command_agent_job_list(@_) },
+        'agent.job_stop'  => sub { return $self->command_agent_job_stop(@_) },
     };
     
     return $map;
@@ -473,7 +484,7 @@ sub command_vcl_use {
 
 
 
-# Get the VCL with the given name from varnish, return DataFromVarnish
+# Get the VCL with the given name from varnish, return DataToClient
 
 sub _vcl_show {
     my ($self, $session, $vcl_name, $auth) = @_;
@@ -486,7 +497,7 @@ sub _vcl_show {
 
 
 
-# Execute given string as a varnish command, return DataFromVarnish
+# Execute given string as a varnish command, return DataToClient
 # object. Works only for commands on the form "command arg_1 arg_2 ... arg_n"
 
 sub run_varnish_command_string {
@@ -503,7 +514,7 @@ sub run_varnish_command_string {
 
 
 # Execute given command of type DataToVarnish on varnish, return
-# DataFromVarnish object
+# DataToClient object
 
 sub run_varnish_command {
     my ($self, $varnish, $command) = @_;
@@ -535,14 +546,12 @@ sub command_param_set {
     my $session       = $self->get_proxy_session($session_id);
     my $authenticated = $session->authenticated();
     my $varnish       = $session->varnish();
-    # my $vac           = $session->vac();
     
     my $params = $self->_read_params();
     my ($param_name, $param_value) = @{$command->args()};
     
     if (! ($param_name && $param_value)) {
         # No comprende. Let Varnish deal with it.
-        # $vac->put($self->run_varnish_command($varnish, $command)->to_string());
         $response = $self->run_varnish_command($varnish, $command)->to_string();
     } else {
         my $command_string = "param.set $param_name $param_value";
@@ -554,7 +563,6 @@ sub command_param_set {
             $self->_add_param($params, $param_name, $param_value);
             $self->_write_params($params);
         }
-        # $vac->put($response);
     }
     
     return $response;
@@ -562,11 +570,58 @@ sub command_param_set {
 
 
 
-sub command_agent_stat {
+# Example:
+# agent.job stats 5
+# 200 12
+# Job-id: 1
+
+sub command_agent_job {
     my ($self, $command, $session_id) = @_;
 
-    $self->debug("command_agent_stat running, TODO: logic needed");
+    $self->debug("command_agent_job running, command: ", Dumper($command));
     my $response;
+    
+    $response = $self->_job_manager->start_job($command->args());
+    
+    return $response;
+}
+
+
+
+
+# Lists all the current jobs the agent is running. Each job on one
+# line. Each line consists of <job-id><ws><original arguments>
+# 
+# Example:
+# agent.job_list
+# 200 <number of bytes>
+# 1 stats 5
+# 2 something foo
+
+sub command_agent_job_list {
+    my ($self, $command, $session_id) = @_;
+
+    $self->debug("command_agent_job_list running, TODO: logic needed");
+    
+    my $list = $self->_job_manager->list_jobs();
+    my $length = bytes::length($list);
+    $self->debug("job_list, length: ", $length);
+    my $response = Varnish::VACAgent::DataToClient->new(status  => "200",
+                                                        length  => $length,
+                                                        message => $list);
+    return $response;
+}
+
+
+
+sub command_agent_job_stop {
+    my ($self, $command, $session_id) = @_;
+
+    $self->debug("command_agent_job_stop running, TODO: logic needed");
+    my $response;
+    
+    my $response = $self->_job_manager->stop_job($command->args());
+    
     return $response;
 }
 

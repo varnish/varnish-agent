@@ -4,6 +4,7 @@ use Moose;
 use 5.010;
 use Data::Dumper;
 
+use Varnish::VACAgent::DataToClient;
 use Varnish::VACAgent::Job::SystemStats;
 
 
@@ -101,7 +102,7 @@ sub start_job {
     $self->_add_job($job_id => $job);
     $job->run();
     
-    my $msg = "Job-id: $job_id";
+    my $msg = "Job-id: $job_id\n";
     return Varnish::VACAgent::DataToClient->new(
         message => $msg,
         length  => bytes::length($msg),

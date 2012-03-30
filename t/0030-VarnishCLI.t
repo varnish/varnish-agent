@@ -47,7 +47,7 @@ eval {
     $response = $vcc->decode_data_from_varnish($octets);
 };
 is($@, '', "Response object 1 generated ok");
-isa_ok($response, 'Varnish::VACAgent::DataFromVarnish',
+isa_ok($response, 'Varnish::VACAgent::DataToClient',
        "Correct response class 1");
 is($response->length(), 0,   "Response length  correct 1");
 is($response->status(), 200, "Response status  correct 1");
@@ -63,7 +63,7 @@ eval {
     $response = $vcc->decode_data_from_varnish($octets);
 };
 is($@, '', "Response object 2 generated ok");
-isa_ok($response, 'Varnish::VACAgent::DataFromVarnish',
+isa_ok($response, 'Varnish::VACAgent::DataToClient',
        "Correct response class 2");
 is($response->length(), 59,  "Response length  correct 2");
 is($response->status(), 107, "Response status  correct 2");
@@ -87,7 +87,7 @@ eval {
     $response = $vcc->decode_data_from_varnish($octets);
 };
 is($@, '', "Response object 3 generated ok");
-isa_ok($response, 'Varnish::VACAgent::DataFromVarnish',
+isa_ok($response, 'Varnish::VACAgent::DataToClient',
        "Correct response class 3");
 is($response->length(), 245, "Response length  correct 3");
 is($response->status(), 200, "Response status  correct 3");

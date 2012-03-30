@@ -9,7 +9,7 @@ use lib qw(./lib ../lib);
 use Test::More;
 use Data::Dumper;
 
-plan tests => 34;
+plan tests => 31;
 
 my $cmd;
 
@@ -56,7 +56,6 @@ is($cmd->authenticated(), 1, "authenticated");
 is($cmd->command(), "help", "command");
 is($cmd->line(), "help", "line");
 is($cmd->heredoc(), undef, "heredoc");
-is($cmd->has_heredoc, 0, "has_heredoc");
 is_deeply($cmd->args, [], "args");
 is($cmd->to_string(), "help\n", "to_string()");
 
@@ -77,7 +76,6 @@ is($cmd->authenticated(), 0, "authenticated");
 is($cmd->command(), "help", "command");
 is($cmd->line(), "help some_command", "line");
 is($cmd->heredoc(), undef, "heredoc");
-is($cmd->has_heredoc, 0, "has_heredoc");
 is_deeply($cmd->args, ['some_command'], "args");
 is($cmd->to_string(), "help some_command\n", "to_string()");
 
@@ -101,7 +99,6 @@ is($cmd->authenticated(), 1, "authenticated");
 is($cmd->command(), "vcl.load", "command");
 is($cmd->line(), "vcl.load some_name << DELIMITER", "line");
 is($cmd->heredoc(), "first vcl line\nsecond vcl line\n", "heredoc");
-is($cmd->has_heredoc(), 1, "has_heredoc");
 is_deeply($cmd->args,
           ['some_name', "first vcl line\nsecond vcl line\n"],
           "args");

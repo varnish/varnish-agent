@@ -3,13 +3,12 @@
 # Provides: 		varnish-agent
 # Required-Start:	$network $local_fs $remote_fs
 # Required-Stop:	$network $local_fs $remote_fs
-# Default-Start:
-# Default-Stop:
-# Should-Start: $syslog
-# Short-Description: start and stop varnishd
-# Description: Varnish Agent is an agent that the VAC speaks to.
+# Default-Start:     	2 3 4 5
+# Default-Stop:      	0 1 6
+# Should-Start: 	$syslog
+# Short-Description: 	Start and stop varnish-agent
+# Description: 		Varnish Agent is an agent that the VAC speaks to.
 ### END INIT INFO
-
 # Author: Lasse Karstensen <lasse@varnish-software.com>
 # Do NOT "set -e"
 

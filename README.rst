@@ -16,8 +16,14 @@ Getting started
 Copy the example configuration file included to /etc/varnish-agent.conf and
 modify it to your taste. Start the agent with the init script in /etc/init.d/. 
 
-Verify in the VAC that the agent was able to register itself.
+Reconfigure the Varnish startup arguments on the local server::
+* Remove the "-f /etc/varnish/default.vcl" (or similar)
+* set "-M localhost:6084". 
 
+This makes the varnish-agent fully configure (both VCL and parameter sets)
+the varnish parent before starting the varnish child that serves requests.
+
+Verify in the VAC that the agent was able to register itself.
 
 Source
 ------

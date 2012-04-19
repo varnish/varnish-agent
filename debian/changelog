@@ -1,4 +1,4 @@
-varnish-agent (1.1.0-rc0) unstable; urgency=low
+varnish-agent (1.14.0-rc0) unstable; urgency=low
 
   * Branch and prepare a stable tree for the VAC 2.0 release.
 

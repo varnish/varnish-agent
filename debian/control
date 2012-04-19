@@ -1,7 +1,7 @@
 Source: varnish-agent
 Section: web
 Priority: extra
-Maintainer: Lasse Karstensen <info@varnish-software.com>
+Maintainer: Lasse Karstensen <lasse@varnish-software.com>
 Build-Depends: debhelper (>= 7)
 Standards-Version: 3.8.1
 

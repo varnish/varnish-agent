@@ -1,7 +1,7 @@
 Summary: Varnish VAC Agent
 Name: varnish-agent
 Version: 1.1
-Release: 4
+Release: 4%{?dist}
 License: BSD
 Group: System Environment/Daemons
 # for now, lets build i386 and x86_64 explicitly.
@@ -37,7 +37,7 @@ Varnish Agent software that runs on all caches managed by Varnish Administration
 rm -rf %{buildroot}
 
 mkdir -p %{buildroot}/usr/bin/ 
-mkdir -p %{buildroot}/etc/rc.d/init.d/
+mkdir -p %{buildroot}/etc/init.d/
 mkdir -p %{buildroot}/etc/sysconfig/
 mkdir -p %{buildroot}/etc/varnish-agent/
 mkdir -p %{buildroot}/var/lib/varnish-agent/
@@ -49,7 +49,7 @@ cp example-agent.conf     %{buildroot}/usr/share/doc/varnish-agent/
 cp LICENCE.txt %{buildroot}/usr/share/doc/varnish-agent/
 cp README.rst  %{buildroot}/usr/share/doc/varnish-agent/
 
-cp redhat/varnish-agent.initrc    %{buildroot}/etc/rc.d/init.d/varnish-agent
+cp redhat/varnish-agent.initrc    %{buildroot}/etc/init.d/varnish-agent
 cp redhat/varnish-agent.sysconfig %{buildroot}/etc/sysconfig/varnish-agent
 
 mkdir -p %{buildroot}/%{_mandir}/man1/
@@ -68,14 +68,13 @@ rm -rf %{buildroot}
 %{_mandir}/man1/*.1*
 #%{_mandir}/man3/*.3*
 #%{_mandir}/man7/*.7*
-#%doc INSTALL LICENSE README redhat/README.redhat ChangeLog
 %doc /usr/share/doc/varnish-agent/*
 
 #%doc examples
 #%dir %{_sysconfdir}/varnish/
 #%config(noreplace) %{_sysconfdir}/varnish-agent.conf
-%config(noreplace) %{_sysconfdir}/sysconfig/varnish-agent
-%{_initrddir}/varnish-agent
+%config(noreplace) /etc/sysconfig/varnish-agent
+/etc/init.d/varnish-agent
 
 %post
 /sbin/chkconfig --add varnish-agent

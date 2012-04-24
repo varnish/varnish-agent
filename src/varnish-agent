@@ -62,6 +62,7 @@ my %config = (
     'SecretFile'	=> undef,
     'VCLFile'		=> '/var/lib/varnish-agent/agent.vcl',
     'ParamsFile'	=> '/var/lib/varnish-agent/agent.param',
+    'ParamsBlacklist'   => '/var/lib/varnish-agent/blacklist.param',
     'VarnishStat'	=> 'varnishstat -1',
     'InstanceID'	=> undef,
     'CallHomeURL'	=> undef,
@@ -100,6 +101,8 @@ my $help = 0;
 my $opt_d = 0;
 my $opt_F = 0;
 
+my $params_blacklist = {};
+
 my %child_pids = ();
 our $secret = undef;
 
@@ -119,6 +122,7 @@ my $result = GetOptions(
     'S:s' => \$config{SecretFile},
     'f:s' => \$config{VCLFile},
     'p:s' => \$config{ParamsFile},
+    'b:s' => \$config{ParamsBlacklist},
     'n:s' => \$config{InstanceID},
     'u:s' => \$config{CallHomeURL},
     'C:s' => \$config{SSLCAFile},
@@ -144,6 +148,7 @@ if($config{SecretFile} gt '') {
 $config{SecretFile} &&= File::Spec->rel2abs($config{SecretFile});
 $config{VCLFile} &&= File::Spec->rel2abs($config{VCLFile});
 $config{ParamsFile} &&= File::Spec->rel2abs($config{ParamsFile});
+$config{ParamsBlacklist} &&= File::Spec->rel2abs($config{ParamsBlacklist});
 $config{CallHomeConfig} &&= File::Spec->rel2abs($config{CallHomeConfig});
 $config{PIDFile} &&= File::Spec->rel2abs($config{PIDFile});
 $config{SSLCAFile} &&= File::Spec->rel2abs($config{SSLCAFile});
@@ -674,12 +679,27 @@ sub master_handler {
     }
     die "Bad varnish response" unless $response->{status} == CLIS_OK;
 
+    # XXX Init blacklist here:
+    if(-r $config{ParamsBlacklist}) {    
+	INFO "Reading params blacklist - $config{ParamsBlacklist}";
+	$params_blacklist = read_params_blacklist($config{ParamsBlacklist});
+    } else {
+	INFO "No params blacklist found";
+    }
+
     # Push params
     if(-r $config{ParamsFile}) {
 	INFO "Pushing parameters to varnish";
 	my $params = read_params($config{ParamsFile});
 
 	for my $param (@$params) {
+
+	    my $blparam = $param->[0];
+	    if (defined $params_blacklist->{ $blparam }) {
+		INFO "Ignored blacklisted param $blparam";
+		next;
+	    } 
+
 	    send_command_2(
 		$varnish, 
 		{ command => "param.set",
@@ -905,6 +925,12 @@ sub command_param_set {
 	my $param = $$args[0];
 	my $value = $$args[1];
 
+	# Discard blacklisted params
+	if (defined $params_blacklist->{$param}) {
+	    INFO "Parameter $param blacklisted - NOT set";
+	    return();
+	}
+
 	send_command_2(
 	    $varnish, {
 		command => "param.set",
@@ -967,6 +993,23 @@ sub command_agent_stat {
     }
 
     send_response($client, $response);
+}
+
+sub read_params_blacklist {
+    my $file = shift;
+    my $data = {};
+    
+    return $data unless -e $file;
+
+    open(FILE, "$file")
+	or die "Can't read params blacklist file $file: $!";
+    while(<FILE>) {
+	chomp;
+	$data->{$_} = 1;
+    }
+    close FILE;
+
+    return $data;
 }
 
 sub read_params {

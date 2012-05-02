@@ -1,4 +1,4 @@
 # 
 # Default Varnish Agent sysconfig file.
 #
-DAEMON_OPTS="-c /etc/varnish-agent.conf"
+DAEMON_OPTS="-c /etc/varnish/agent.conf"

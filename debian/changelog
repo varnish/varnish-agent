@@ -1,3 +1,9 @@
+varnish-agent (1.14.0-rc1) unstable; urgency=low
+
+  * Branch and prepare a stable tree for the VAC 2.0 release.
+
+ -- Lasse Karstensen <lasse@varnish-software.com>  Thu, 19 Apr 2012 13:35:25 +0200
+
 varnish-agent (1.13+nmu1) unstable; urgency=low
 
   * libwww-perl was missing as dependency.

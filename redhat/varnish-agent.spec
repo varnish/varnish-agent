@@ -41,10 +41,11 @@ mkdir -p %{buildroot}/etc/init.d/
 mkdir -p %{buildroot}/etc/sysconfig/
 mkdir -p %{buildroot}/etc/varnish-agent/
 mkdir -p %{buildroot}/var/lib/varnish-agent/
-mkdir -p %{buildroot}/usr/share/doc/varnish-agent/
+mkdir -p %{buildroot}/usr/share/doc/varnish-agent/examples/
 
 cp src/varnish-agent      %{buildroot}/usr/bin/
-cp example-agent.conf     %{buildroot}/usr/share/doc/varnish-agent/
+cp agent.conf     %{buildroot}/usr/share/doc/varnish-agent/examples/
+cp agent.conf     %{buildroot}/etc/varnish/agent.conf
 
 cp LICENCE.txt %{buildroot}/usr/share/doc/varnish-agent/
 cp README.rst  %{buildroot}/usr/share/doc/varnish-agent/
@@ -73,6 +74,7 @@ rm -rf %{buildroot}
 #%doc examples
 #%dir %{_sysconfdir}/varnish/
 #%config(noreplace) %{_sysconfdir}/varnish-agent.conf
+%config(noreplace) /etc/varnish/agent.conf
 %config(noreplace) /etc/sysconfig/varnish-agent
 /etc/init.d/varnish-agent
 

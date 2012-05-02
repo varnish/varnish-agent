@@ -1,7 +1,7 @@
 Summary: Varnish VAC Agent
 Name: varnish-agent
 Version: 1.14.0
-Release: 4%{?dist}
+Release: 5%{?dist}
 License: BSD
 Group: System Environment/Daemons
 # for now, lets build i386 and x86_64 explicitly.
@@ -44,8 +44,8 @@ mkdir -p %{buildroot}/var/lib/varnish-agent/
 mkdir -p %{buildroot}/usr/share/doc/varnish-agent/examples/
 
 cp src/varnish-agent      %{buildroot}/usr/bin/
-cp agent.conf     %{buildroot}/usr/share/doc/varnish-agent/examples/
-cp agent.conf     %{buildroot}/etc/varnish/agent.conf
+cp example-agent.conf     %{buildroot}/usr/share/doc/varnish-agent/examples/agent.conf
+cp example-agent.conf     %{buildroot}/etc/varnish/agent.conf
 
 cp LICENCE.txt %{buildroot}/usr/share/doc/varnish-agent/
 cp README.rst  %{buildroot}/usr/share/doc/varnish-agent/

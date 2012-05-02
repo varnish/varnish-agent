@@ -1,7 +1,7 @@
 Summary: Varnish VAC Agent
 Name: varnish-agent
-Version: 1.14.0
-Release: 5%{?dist}
+Version: 1.15
+Release: 0%{?dist}
 License: BSD
 Group: System Environment/Daemons
 # for now, lets build i386 and x86_64 explicitly.

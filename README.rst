@@ -4,7 +4,7 @@ Varnish Agent
 The Varnish Agent is a management agent for the Varnish Cache server.
 
 In its current shape it is a communication layer for the Varnish Administration
-Console (VAC) providered by Varnish Software AS.
+Console (VAC) provided by Varnish Software AS.
 
 Upon starting, the agent will attempt to register itself with the VAC instance
 mentioned in the configuration file.

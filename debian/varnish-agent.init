@@ -17,7 +17,7 @@ PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="Varnish Agent"
 NAME=varnish-agent
 DAEMON=/usr/sbin/$NAME
-DAEMON_ARGS="-c /etc/varnish-agent.conf"
+DAEMON_ARGS="-c /etc/varnish/agent.conf"
 PIDFILE=/var/run/$NAME.pid
 SCRIPTNAME=/etc/init.d/$NAME
 

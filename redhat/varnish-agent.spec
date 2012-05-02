@@ -38,6 +38,7 @@ rm -rf %{buildroot}
 
 mkdir -p %{buildroot}/usr/bin/ 
 mkdir -p %{buildroot}/etc/init.d/
+mkdir -p %{buildroot}/etc/varnish/
 mkdir -p %{buildroot}/etc/sysconfig/
 mkdir -p %{buildroot}/etc/varnish-agent/
 mkdir -p %{buildroot}/var/lib/varnish-agent/

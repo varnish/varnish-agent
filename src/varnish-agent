@@ -509,7 +509,7 @@ sub receive_command {
     my $line = <$socket>;
     DEBUG "C->A: ".pretty_line($line);
     $line = chomp_line($line);
-    if ($authenticated && $line =~ s/ << (\w+)$//) {
+    if ($authenticated && $line =~ s/ << ([\w-]+)$//) {
 	# Here-document
 	my $token = $1;
 	my ($heredoc, $part);
@@ -541,7 +541,7 @@ sub receive_command_2 {
     $line = chomp_line($line);
     my $tmp = $line;
     my $heredoc = undef;
-    if ($authenticated && $tmp =~ s/ << (\w+)$//) {
+    if ($authenticated && $tmp =~ s/ << ([\w-]+)$//) {
 	# Here-document
 	my $token = $1;
 	my $part;
@@ -580,7 +580,7 @@ sub send_command_2 {
 	# Our command struct has a 'line', use this
 	DEBUG "A->V: ".$command->{line};
 	print $socket "$command->{line}\n";
-	if ($command->{heredoc} && $command->{line} =~ /<< (\w+)$/) {
+	if ($command->{heredoc} && $command->{line} =~ /<< ([\w-]+)$/) {
 	    # We should add a heredoc argument
 	    my $token = $1;
 	    my $heredoc = @{$command->{args}}[-1];

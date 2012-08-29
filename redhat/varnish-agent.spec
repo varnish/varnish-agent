@@ -1,6 +1,6 @@
 Summary: Varnish VAC Agent
 Name: varnish-agent
-Version: 1.15
+Version: 1.16
 Release: 0%{?dist}
 License: BSD
 Group: System Environment/Daemons
@@ -89,6 +89,9 @@ rm -rf %{buildroot}
 #fi
 
 %changelog
+* Wed Aug 29 2012 Kristian Lyngstøl <kristian@varnish-software.com> - 1.16
+- Fix heredocs
+
 * Thu Apr 19 2012 Lasse Karstensen <lasse@varnish-software.com> - 1.14.0-rc
 - Prepare a stable 1.1-tree.
 

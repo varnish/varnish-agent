@@ -1,3 +1,10 @@
+varnish-agent (1.16.0) unstable; urgency=low
+
+  [ Kristian Lyngstøl ]
+  * Fix heredocs detection to catch dashes too
+
+ -- Kristian Lyngstøl <kristian@varnish-software.com>  Wed, 29 Aug 2012 16:08:58 +0200
+
 varnish-agent (1.14.0-rc1) unstable; urgency=low
 
   [ Lasse Karstensen ]
@@ -6,7 +13,7 @@ varnish-agent (1.14.0-rc1) unstable; urgency=low
   [ Tollef Fog Heen ]
   * Move agent.conf back to its old location.
 
-  -- Lasse Karstensen <lasse@varnish-software.com>  Thu, 19 Apr 2012 13:35:25 +0200
+ -- Lasse Karstensen <lasse@varnish-software.com>  Thu, 19 Apr 2012 13:35:25 +0200
 
 varnish-agent (1.13+nmu1) unstable; urgency=low
 

@@ -16,6 +16,14 @@ Requires: perl-Digest-SHA
 Requires: perl-Config-Simple
 Requires: perl-File-Pid
 Requires: perl-Proc-Daemon
+Requires: perl-IO-Socket-SSL
+
+BuildRequires: perl-Log-Log4perl
+BuildRequires: perl-Digest-SHA
+BuildRequires: perl-Config-Simple
+BuildRequires: perl-File-Pid
+BuildRequires: perl-Proc-Daemon
+BuildRequires: perl-IO-Socket-SSL
 
 Requires(post): /sbin/chkconfig
 Requires(preun): /sbin/chkconfig

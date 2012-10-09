@@ -9,7 +9,7 @@ TMPDIR=/tmp/foo$$
 PREVDIR=$PWD
 
 # is there a better way of doing this? 
-TOPDIR=$(rpm  --showrc | awk '$2 ~ /_topdir/ {print $3}')
+TOPDIR=$(rpm -E "$(rpm  --showrc | awk '$2 ~ /_topdir/ {for (x=3; x<=NF; x++){print $x}}')" --quiet 2>/dev/null)
 if [ -z "$TOPDIR" ]; then
     echo "Can't figure out where to put tarball. SOURCES/ unknown"
     exit 255

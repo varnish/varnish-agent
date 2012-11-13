@@ -28,7 +28,7 @@ Requires(preun): initscripts
 Varnish Agent software that runs on all caches managed by Varnish Administration Console (VAC).
 
 %prep
-%setup -n varnish-agent-master
+%setup -n varnish-agent-v%{version}
 
 %build 
 #echo "No build step necessary"

@@ -2,3 +2,10 @@
 
 %:
 	dh $@
+
+override_dh_gencontrol:
+	if [ -n "$$OVERRIDE_BINARY_VERSION" ]; then \
+		dh_gencontrol -- -v$$OVERRIDE_BINARY_VERSION; \
+	else \
+		dh_gencontrol ; \
+	fi

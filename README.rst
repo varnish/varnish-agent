@@ -1,3 +1,8 @@
+DEPRECATED & UNSUPPORTED
+
+Check the new agent for details: https://github.com/varnish/vagent2
+
+
 Varnish Agent
 =============
 
